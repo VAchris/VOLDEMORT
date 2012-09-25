@@ -3,5 +3,6 @@ COPIES
 Copies of utilities and packages from elsewhere required to run VDM. These copies are the ones that will be packaged in VDM releases. 
 
 Copies:
-- FMQL KIDS and Cache Management Utility (Repository: https://github.com/caregraf/FMQL)
+- FMQL KIDS (Repository: https://github.com/caregraf/FMQL)
+- Python FMQL utilities (Repository: https://github.com/caregraf/pyFMQL)
 - pyVistA RPCConnection utility (Repository: https://github.com/OSEHR/pyVistA)
