@@ -1,0 +1,3 @@
+FMQL
+
+Pieces of FMQL required to run VDM. These include the FMQL KIDS and client utilities. While these will be kept in sync with the masters on the FMQL repository, these copies are the ones that will be packaged in VDM releases. 
