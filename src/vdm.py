@@ -3,7 +3,6 @@
 ## VOLDEMORT (VDM) VistA Comparer, command line driver
 #
 # (c) 2012 Caregraf, Ray Group Intl
-# Author: Caregraf
 # For license information, see LICENSE.TXT
 #
 
@@ -18,6 +17,11 @@ VOLDEMORT (VDM)
 --access: access for FMQL RPC
 --verify: verify for FMQL RPC
 -r, --report: only 'schema' for now. If report isn't specified then only caching runs.
+
+Example using a full FMQL RESTful endpoint ...
+$ python vdm.py -v CGVISTA -f http://vista.caregraf.org/fmqlEP -r schema
+or to use the FMQL RPC directly ...
+$ python vdm.py -v CGVISTA --host "xx.xx.xx" --port 9201 --access "XXX" --verify "YYY" -r schema
 
 The first time VDM runs against a VistA, the majority of time taken is downloading meta data. Subsequent runs of VDM for that VistA will be much faster as they'll run off a cache. 
 

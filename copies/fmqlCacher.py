@@ -52,7 +52,6 @@ class FMQLCacher:
             raise
         self.__fmqlEP = fmqlEP
         if host:
-            verify = "CD1234!!"
             self.__rpcCPool = RPCConnectionPool("VistA", self.__poolSize, host, port, access, verify, "CG FMQL QP USER", RPCLogger())        
     
     def clearCache(self, vistaLabel):
@@ -81,7 +80,6 @@ class FMQLCacher:
             rpcArg = "OP:DESCRIBETYPE^TYPE:%s" % re.split("TYPE ", query)[1]
         else:
             rpcArg = "OP:SELECTALLTYPES"
-        # verify = "CD1234!!"
         reply = self.__rpcCPool.invokeRPC("CG FMQL QP", [rpcArg])
         return self.__cacheReply(query, reply)
         

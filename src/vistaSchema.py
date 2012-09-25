@@ -2,7 +2,6 @@
 ## VOLDEMORT (VDM) VistA Comparer
 #
 # (c) 2012 Caregraf, Ray Group Intl
-# Author: Caregraf
 # For license information, see LICENSE.TXT
 #
 
