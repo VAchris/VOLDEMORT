@@ -1,0 +1,7 @@
+Standard configurations that are not in VistA itself including
+- Packages.csv: map of globals/file locations to Packages
+- Vendor namespaces
+- VistA directory (Vista host/port information along with names)
+- List of 13 key Packages for VDM V1
+
+Note: GOLD may move in here. 
