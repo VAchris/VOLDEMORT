@@ -7,7 +7,7 @@ Notes
 -----
 - Two GOLDs: for OSEHRA, GOLD VistA will be a cleaned up version of FOIA and the latest version, zipped, is in the 'gold' directory of this repository. The VA's internal GOLD will also have proprietary elements not available on OSEHRA and not present in FOIA.
 - VDM version 1 is scheduled for release in December 2012. Between then and now, new reports and code upgrades will be posted here.
-- VDM relies on FMQL, the FileMan Query Language to download system meta data from a VistA. FMQL is available at: http://www.caregraf.org/semanticvista/fmql#fmqlrelease/ reporitory (https://github.com/caregraf/FMQL)
+- VDM relies on FMQL, the FileMan Query Language to download system meta data from a VistA. FMQL is available at: http://www.caregraf.org/semanticvista/fmql#fmqlrelease/, repository (https://github.com/caregraf/FMQL)
 
 Installation and running
 ------------------------
@@ -20,5 +20,5 @@ to run against the publicly hosted Caregraf test VistA
 [http://repository.caregraf.org/fmql/raw-file/tip/Releases/v0.9/installFMQLV0_9.html]   
 IMPORTANT: use the FMQL KIDS in /copies and not the one referenced in these install instructions. 
 Then to run directly against the FMQL RPC ...  
-    python vdm.py -v {LABELFORYOURVISTA} -h "itshost" -p PORT -a ACCESS -v VERIFY -r schema
+    python vdm.py -v {LABELFORYOURVISTA} -h HOST -p PORT -a ACCESS -v VERIFY -r schema
 
