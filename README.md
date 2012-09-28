@@ -11,14 +11,18 @@ Notes
 
 Installation and running
 ------------------------
-1. Copy the contents of /copies and /src where you want to run the program. Let's call the location /vdm so you'll have /vdm/vistaSchema.py etc. 
-2. make a subdirectory, "Caches" and copy gold/GOLD.zip in there and unzip it
-3. when in /vdm type:  
-    python vdm.py -v CGVISTA -f "http://vista.caregraf.org/fmqlEP" -r schema  
-to run against the publicly hosted Caregraf test VistA
+1. Clone this repository from git
+2. Go into the VOLDEMORT directory and Install the python package
+    python setup.py install
+   and now you can delete the repository and its directory if you like - you won't be using it again
+3. Create a working directory somewhere. Let's call it 'vdm'. In 'vdm' ...
+    python -m vdm -h
+   you will see a message about VOLDERMORT setting up its cache and then see a printout of help
+    python -m vdm -v CGVISTA -f "http://vista.caregraf.org/fmqlEP" -r schema  
+   will run against the publicly hosted Caregraf test VistA
 4. to run against your own VistA, install FMQL on it. See  
 [http://repository.caregraf.org/fmql/raw-file/tip/Releases/v0.9/installFMQLV0_9.html]   
 IMPORTANT: use the FMQL KIDS in /copies and not the one referenced in these install instructions. 
 Then to run directly against the FMQL RPC ...  
-    python vdm.py -v {LABELFORYOURVISTA} -h "itshost" -p PORT -a ACCESS -v VERIFY -r schema
+    python -m vdm -v LABELFORYOURVISTA -h HOST -p PORT -a ACCESS -v VERIFY -r schema
 
