@@ -29,11 +29,13 @@ Installation and running
 
    will run against the publicly hosted Caregraf test VistA
 
-4. to run against your own VistA, install FMQL on it. See  
-[http://repository.caregraf.org/fmql/raw-file/tip/Releases/v0.9/installFMQLV0_9.html]   
-IMPORTANT: use the FMQL KIDS in /copies and not the one referenced in these install instructions. 
+4. to run against your own VistA
 
-Then to run directly against the FMQL RPC ...  
+   Install FMQL on it. See  
+[http://repository.caregraf.org/fmql/raw-file/tip/Releases/v0.9/installFMQLV0_9.html]   
+   A copy of the FMQL KIDS is in 'fmqlkids'
+
+   Then to run VDM directly against the FMQL RPC ...  
 
         python -m vdm -v LABELFORYOURVISTA -h HOST -p PORT -a ACCESS -v VERIFY -r schema
 
