@@ -302,7 +302,7 @@ def demo():
     """
     import logging
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    from fmqlCacher import FMQLCacher
+    from copies.fmqlCacher import FMQLCacher
     gCacher = FMQLCacher("Caches")
     gCacher.setVista("GOLD")
     oCacher = FMQLCacher("Caches")

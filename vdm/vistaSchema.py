@@ -123,7 +123,7 @@ def demo():
     Equivalent from command line:
     $ python
     ...
-    >>> from fmqlCacher import *
+    >>> from copies.fmqlCacher import FMQLCacher 
     >>> cacher = FMQLCacher("Caches")
     >>> cacher.setVista("CGVISTA") 
     >>> from vistaSchema import *
@@ -134,7 +134,7 @@ def demo():
     {...
     """
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    from fmqlCacher import FMQLCacher
+    from copies.fmqlCacher import FMQLCacher
     cacher = FMQLCacher("Caches")
     cacher.setVista("CGVISTA", "http://vista.caregraf.org/fmqlEP") 
     vair = VistaSchema("CGVISTA", cacher)
