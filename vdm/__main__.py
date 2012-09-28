@@ -19,9 +19,9 @@ VOLDEMORT (VDM)
 -r, --report: only 'schema' for now. If report isn't specified then only caching runs.
 
 Example using a full FMQL RESTful endpoint ...
-$ python vdm.py -v CGVISTA -f http://vista.caregraf.org/fmqlEP -r schema
+$ python -m vdm -v CGVISTA -f http://vista.caregraf.org/fmqlEP -r schema
 or to use the FMQL RPC directly ...
-$ python vdm.py -v CGVISTA --host "xx.xx.xx" --port 9201 --access "XXX" --verify "YYY" -r schema
+$ python -m vdm -v CGVISTA --host "xx.xx.xx" --port 9201 --access "XXX" --verify "YYY" -r schema
 
 The first time VDM runs against a VistA, the majority of time taken is downloading meta data. Subsequent runs of VDM for that VistA will be much faster as they'll run off a cache. 
 
@@ -36,19 +36,47 @@ import sys
 import re
 import getopt
 import logging
-from vistaSchema import VistaSchema
-from vistaSchemaComparer import VistaSchemaComparer
-from fmqlCacher import FMQLCacher
+from vdm.vistaSchema import VistaSchema
+from vdm.vistaSchemaComparer import VistaSchemaComparer
+from vdm.copies.fmqlCacher import FMQLCacher
+import pkg_resources
+from shutil import copy
+from zipfile import ZipFile
+
+def _makeEnvir():
+    """
+    Create Caches and Reports directories and move GOLD into Caches
+
+    TODO:
+    - move into a vdmEnvir module. After setup, it can provide access
+    to all files and vistaSchema and others can delegate to it.
+    """
+    if not os.path.exists("Reports"):
+        os.mkdir("Reports")
+    if not os.path.exists("Caches"):
+        os.mkdir("Caches")
+    if not os.path.exists("Caches/GOLD"):
+        # must run inside the package itself so __name__ works
+        goldZipFile = pkg_resources.resource_filename(__name__, "resources/GOLD.zip")
+        copy(goldZipFile, "Caches")   
+        print "Need GOLD - unziping GOLD into %s" % (os.getcwd() + "/Caches")
+        ZipFile(os.getcwd() + "/Caches/GOLD.zip").extractall(os.getcwd() + "/Caches")
 
 def main():
     """
-    TODO: 
+    Invoked with python -m vdm
+
+    TODO:
+    - packaging: use setuptools - make front from windows/linux etc explicitly and don't reply on python -m 
+      - merge directory handling with equivalents in vistaSchema etc. Want one environment manager.
+      - http://parijatmishra.wordpress.com/2008/10/13/python-packaging-custom-scripts/
     - play with pool size to see speed of Caching
     - crude: move to argparse and a VistA directory file
     - if GOLD zip and not in Cache, move to Cache
     - when more than Schema reports, add option for --report
     """
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    _makeEnvir()
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hv:f:r:", ["help", "vista=", "fmqlep=", "report=", "host=", "port=", "access=", "verify="])
     except getopt.GetoptError, err:
@@ -65,21 +93,21 @@ def main():
     verify = ""
     report = ""
     for o, a in opts:
-        if o in ("-v", "--vista"):
+        if o in ["-v", "--vista"]:
             vista = a
-        elif o in ("-f", "--fmqlep"):
+        elif o in ["-f", "--fmqlep"]:
             fmqlEP = a
-        elif o in ("--host"):
+        elif o in ["--host"]:
             host = a
-        elif o in ("--port"):
+        elif o in ["--port"]:
             port = a            
-        elif o in ("--access"):
+        elif o in ["--access"]:
             access = a
-        elif o in ("--verify"):
+        elif o in ["--verify"]:
             verify = a
-        elif o in ("-r", "--report"):
+        elif o in ["-r", "--report"]:
             report = a
-        elif o in ("-h", "--help"):
+        elif o in ["-h", "--help"]:
             print __doc__
             sys.exit()
     print "VDM - comparing a VistA's schema against GOLD. -h for help."
