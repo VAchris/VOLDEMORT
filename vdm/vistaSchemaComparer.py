@@ -270,7 +270,9 @@ class VSHTMLReportBuilder:
         return reportFileName
     
 class VSFormattedTextReportBuilder:
-
+    """
+    See: http://www.afpy.org/doc/python/2.7/library/textwrap.html
+    """
     def __init__(self):
         pass
         
