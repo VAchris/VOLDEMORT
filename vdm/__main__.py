@@ -72,8 +72,7 @@ def main():
       - http://parijatmishra.wordpress.com/2008/10/13/python-packaging-custom-scripts/
     - play with pool size to see speed of Caching
     - crude: move to argparse and a VistA directory file
-    - if GOLD zip and not in Cache, move to Cache
-    - when more than Schema reports, add option for --report
+    - consider opening browser if html reports: http://www.afpy.org/doc/python/2.7/library/webbrowser.html
     """
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     _makeEnvir()
