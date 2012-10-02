@@ -4,10 +4,13 @@ VOLDEMORT (VDM) V1 is a VistA system comparison application that leverages what 
 
 Current Work (as of 10/2/12)
 ----------------------------
-a) framework enhancement for processing system build and install information
-b) report generator for a "build difference" report
-c) optimization (threading) to speed up FMQL calling. The current VDM is network I/O bound (too much detail!)
-d) a standard Windows install
+1. framework enhancement for processing system build and install information
+
+2. report generator for a "build difference" report
+
+3. optimization (threading) to speed up FMQL calling. The current VDM is network I/O bound
+
+4. a standard Windows install
 
 Installation and running
 ------------------------
