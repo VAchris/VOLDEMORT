@@ -1,0 +1,21 @@
+Background:
+a) VOLDEMORT (VDM) V1 is a repository-less VistA system comparison application that leverages what every VistA knows about itself. It is written in Python and uses FMQL, the open source FileMan query mechanism to query and cache VistA system data. It compares what a VistA returns to a canonical ("GOLD") VistA definition and produces a series of "difference" reports for file schema, routines and more.
+b) all VDM V1 code is hosted at https://github.com/OSEHR/VOLDEMORT . This is NOT an OSEHRA site but OSEHRA's area on github, the most popular host for open source projects.
+c) the VA version of VDM will have custom elements - primarily an undedacted GOLD VistA definition. VDM is designed to run against any "GOLD". There will be an outside one - held publicly on the VOLDEMORT github, the VA one, held?, and there could be others. For instance, the IHS could create one for RPMS.
+
+The milestone being worked towards: demonstration of application installation, running and reports to the VA in mid October. 
+
+What's on github/VDM now:
+a) has a standard python package installation. 
+b) self-contained: holds copies of code and utilities reused from other projects (FMQL KIDS, open source utilities)
+c) already produces a schema difference report (see examples)
+d) runs against any VistA (or RPMS) with FMQL installed. Out of the box, it will run against Caregraf's publicly hosted demo VistA
+e) in place of a repository, has file system based cache management
+f) the application bundles a "GOLD" VistA definition that is based on FOIA from 12/2011. This will be replaced by a new VA GOLD once that is available.
+g) has been tested against three "VistA"s: the setup of a test VA VistA (from an earlier project), RPMS and OpenVistA.
+
+What's underway now, most due by next Monday:
+a) framework enhancement for processing system build and install information
+b) report generator for a "build difference" report
+c) optimization (threading) to speed up FMQL calling. The current VDM is network I/O bound (too much detail!)
+d) a standard Windows install
