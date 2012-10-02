@@ -1,13 +1,13 @@
 VOLDEMORT (VDM)
 ===============
+VOLDEMORT (VDM) V1 is a VistA system comparison application that leverages what every VistA knows about itself. It is written in Python and uses FMQL, the open source FileMan query mechanism to query and cache VistA system data. It compares what a VistA returns to a canonical ("GOLD") VistA definition and produces a series of "difference" reports for file schema, routines and more. VDM V1 is due for release in December 2012.
 
-The public version of VOLDEMORT (VDM), the VA's tool for comparing the setup of any VistA system against a GOLD master. 
-
-Notes
------
-- Two GOLDs: for OSEHRA, GOLD VistA will be a cleaned up version of FOIA and the latest version, zipped, is in the 'gold' directory of this repository. The VA's internal GOLD will also have proprietary elements not available on OSEHRA and not present in FOIA.
-- VDM version 1 is scheduled for release in December 2012. Between then and now, new reports and code upgrades will be posted here.
-- VDM relies on FMQL, the FileMan Query Language to download system meta data from a VistA. FMQL is available at: http://www.caregraf.org/semanticvista/fmql#fmqlrelease/, repository (https://github.com/caregraf/FMQL)
+Current Work (as of 10/2/12)
+----------------------------
+a) framework enhancement for processing system build and install information
+b) report generator for a "build difference" report
+c) optimization (threading) to speed up FMQL calling. The current VDM is network I/O bound (too much detail!)
+d) a standard Windows install
 
 Installation and running
 ------------------------
@@ -25,13 +25,14 @@ Installation and running
 
    you will see a message about VOLDERMORT setting up its cache and then see a printout of help
 
-        python -m vdm -v CGVISTA -f "http://vista.caregraf.org/fmqlEP" -r schema  
+4. Try it ...
 
+        python -m vdm -v CGVISTA -f "http://vista.caregraf.org/fmqlEP" -r schema  
    will run against the publicly hosted Caregraf test VistA
 
-4. to run against your own VistA
+5. To run against your own VistA
 
-   Install FMQL on it. See  
+   Install FMQL on your VistA. See  
 [http://repository.caregraf.org/fmql/raw-file/tip/Releases/v0.9/installFMQLV0_9.html]   
    A copy of the FMQL KIDS is in 'fmqlkids'
 
