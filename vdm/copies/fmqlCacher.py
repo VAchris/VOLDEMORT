@@ -51,11 +51,53 @@ class FMQLCacher:
             logging.critical(sys.exc_info()[0])
             raise
         self.__fmqlEP = fmqlEP
-        if host:
-            self.__rpcCPool = RPCConnectionPool("VistA", self.__poolSize, host, port, access, verify, "CG FMQL QP USER", RPCLogger())        
+        self.__rpcCPool = RPCConnectionPool("VistA", self.__poolSize, host, port, access, verify, "CG FMQL QP USER", RPCLogger()) if host else None     
     
     def clearCache(self, vistaLabel):
         pass
+        
+    def queryLimited(self, vistaLabel, query, limit=-1):
+        """
+        This is a generator object that avoids the need for every one
+        of the results of a query to be in memory for processing. 
+        
+        Note that there is a speed tradeoff between # of queries and 'limit' 
+        but this won't effect the caller which just sees only result at a time.
+        
+        for result in queryLimited("x", "QUERY ..."):
+            print result
+            
+        TODO: 
+        - break out as iterator (__iter__) that calls this method as its
+        generator, FMQLQuery
+          fmqlCacher.fmqlQueryIterator(query, limit)
+          for result in fmqlCacher.fmqlQueryIterator(query, limit)
+        or may just go straight into queue from threads ie/ queue.get()
+        """
+        if limit == -1:
+            limit = 5000 if re.search(r'SELECT ', query) else 1000
+        else:
+            limit = int(limit) # just to be sure.
+        offset = 0
+        while True:
+            loquery = query + " LIMIT %s OFFSET %s" % (limit, offset)
+            queryFile = self.__cacheLocation + "/" + loquery + ".json"
+            if os.path.isfile(queryFile):
+                reply = json.load(open(queryFile, "r"))
+            else:
+                if not (self.__fmqlEP or self.__rpcCPool):
+                    logging.critical("Don't know FMQL EP or Access/Verify for %s, so can't do <%s> - exiting" % (self.vistaLabel, str(loquery)))
+                    raise Exception("Need FMQL EP or Access/Verify")            
+                if self.__fmqlEP:
+                    reply = self.__epCache(loquery)
+                else: # self.__rpcCPool:
+                    reply = self.__rpcCache(loquery)
+            logging.info("Reading - %s (%d results) - from cache" % (loquery, int(reply["count"])))
+            for result in reply["results"]:
+                yield result
+            if int(reply["count"]) != limit:
+                break
+            offset += limit
     
     def query(self, vistaLabel, query):
         queryFile = self.__cacheLocation + "/" + query + ".json"
@@ -88,8 +130,47 @@ class FMQLCacher:
         jcache = open(self.__cacheLocation + "/" + query + ".json", "w")
         json.dump(jreply, jcache)
         jcache.close()
-        return jreply      
+        return jreply
         
+class FMQLDescribeResult(object):
+    """TODO: jsona, qualify uri's, container name, typed fields"""
+    
+    def __init__(self, result):
+        self.__result = result
+        
+    @property
+    def id(self):
+        return self.__result["uri"]["value"]
+        
+    def cstopped(self, flatten=False):
+        """Return as if CSTOP=0"""
+        return self.__flatten(self.__result, False)
+            
+    def cnodeFields(self):
+        return [field for field, value in self.__result.items() if value["type"] == "cnodes"]
+        
+    def cnodes(self, cnodeField):
+        if cnodeField not in self.__result:
+            return None
+        cnodes = []
+        for cr in self.__result[cnodeField]["value"]:
+            fcnode = self.__flatten(cr, nixURI=True)
+            fcnode["vse:container"] = self.id
+            cnodes.append(fcnode)
+        return cnodes
+        
+    def __flatten(self, dr, includeCNodes=True, nixURI=False):
+        fdr = {}
+        for field, value in dr.items():
+            if nixURI and field == "uri": # CNodes - no need
+                continue
+            if value["type"] == "cnodes":
+                if includeCNodes:
+                    fdr[field] = [self.__flatten(cnode, nixURI=True) for cnode in value["value"]]
+                continue
+            fdr[field] = value["value"]
+        return fdr
+                
 class RPCLogger:
     def __init__(self):
         pass
