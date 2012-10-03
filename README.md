@@ -8,7 +8,7 @@ Current Work (as of 10/2/12)
 
 2. report generator for a "build difference" report
 
-3. optimization (threading) to speed up FMQL calling. The current VDM is network I/O bound
+3. optimization (threading) to speed up FMQL calling. The current VDM is network I/O bound [CHECKED IN]
 
 4. a standard Windows install
 
