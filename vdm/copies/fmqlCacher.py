@@ -35,11 +35,10 @@ class FMQLCacher:
     Manage Cache of FMQL responses for a named VistA. Works with both a web hosted FMQL endpoint and directly with the FMQL RPC.
     
     TODO:
-    - break in two: RPC Cacher and EP Cacher
-    - make it specializer FMQLAccessor which will work without a Cache
+    - Break out iterators explicitly. They can take FMQLInterface which
+    can hide the Cache as well as RPC vs FMQL EP.
     """
-    def __init__(self, cachesLocation, poolSize=5):
-        self.__poolSize = poolSize
+    def __init__(self, cachesLocation):
         try:
             if not os.path.exists(cachesLocation):
                 os.mkdir(cachesLocation) 
@@ -48,7 +47,21 @@ class FMQLCacher:
             raise
         self.__cachesLocation = cachesLocation
             
-    def setVista(self, vistaLabel, fmqlEP="", host="", port=-1, access="", verify=""):
+    """
+    Pool size play (Schema Grab):
+    - RPC:
+      - Elapsed Time to cache schema in 5 pieces: 149.387557983
+      - Elapsed Time to cache schema in 10 pieces: 70.3322050571
+      - Elapsed Time to cache schema in 15 pieces: 50.4330279827
+      Issue: if go to 20, hangs once has them all. Doesn't depend on counting
+      queue size but in print outs the queue does go to 0 for all the last elements.
+    - EP:
+      - Elapsed Time to cache schema in 10 pieces: 160.150575876
+      - Elapsed Time to cache schema in 15 pieces: 134.057111025
+      - Elapsed Time to cache schema in 20 pieces: 133.793686867 ie/ marginal
+    For now, setting sweet spot to 15. Need to tweek for different boxes.
+    """
+    def setVista(self, vistaLabel, fmqlEP="", host="", port=-1, access="", verify="", poolSize=15):
         self.vistaLabel = vistaLabel
         try:
             self.__cacheLocation = self.__cachesLocation + "/" + re.sub(r' ', '_', vistaLabel)
@@ -57,41 +70,90 @@ class FMQLCacher:
         except:
             logging.critical(sys.exc_info()[0])
             raise
-        self.__fmqlEP = fmqlEP
-        self.__rpcCPool = RPCConnectionPool("VistA", self.__poolSize, host, port, access, verify, "CG FMQL QP USER", RPCLogger()) if host else None     
+        rpcCPool = RPCConnectionPool("VistA", poolSize, host, port, access, verify, "CG FMQL QP USER", RPCLogger()) if host else None
+        self.__poolSize = poolSize # if rpc then # threads == conn pool size
+        self.__fmqlIF = FMQLInterface(fmqlEP, rpcCPool) if (fmqlEP or rpcCPool) else None         
     
     def clearCache(self, vistaLabel):
         pass
         
-    def query(self, vistaLabel, query):
+    def query(self, query):
         """
-        Dispatch and cache any query. Blocks.
+        Invoke any query. If not in cache then dispatch it and cache
+        the reply. 
+        
+        Simple, blocking invocation. No generator, iterator or threading
+        efficiencies.
         """
         queryFile = self.__cacheLocation + "/" + query + ".json"
         if os.path.isfile(queryFile):
             reply = json.load(open(queryFile, "r"))
             return reply
-        if self.__fmqlEP:
-            return self.__epCache(query)
-        elif self.__rpcCPool:
-            return self.__rpcCache(query)
-        logging.critical("Don't know FMQL EP or Access/Verify for %s, so can't do <%s> - exiting" % (self.vistaLabel, str(query)))
-        raise Exception("Need FMQL EP or Access/Verify")
-        
-    DESCRIBE_TYPE_TEMPL = "DESCRIBE TYPE %s"
-        
-    def describeSchemaTypes(self, schemaTypes):
+        reply = self.__fmqlIF.query(query)
+        jreply = json.loads(reply)
+        jcache = open(self.__cacheLocation + "/" + query + ".json", "w")
+        json.dump(jreply, jcache)
+        jcache.close()
+        logging.info("Cached " + query)
+        return jreply
+                    
+    def describeSchemaTypes(self):
         """
-        Generator, returns one type at a time. 
-        
+        Generator, returns one type at a time. Takes "count" from 
+        SELECT TYPES and moves into top file's description and
+        flattens description.
+       
+        Invoke with:
+            for cnt, schema in enumerate(.describeSchemaTypes()) 
+            
         TODO:
-        - change schema grab to be threaded.
-        - return an iterator. Then can enumerate(x) on it.
+        - make iteration more explicit with an FMQLSchemaIterator class.
+        All this should move out of the Cacher class.
+        - flatten field and file description ie/ remove "value"
         """
-        pass
+        if not self.__isSchemaCached():
+            self.__cacheSchema()
+        queryFile = self.__cacheLocation + "/SELECT TYPES.json"
+        selectTypesReply = json.load(open(queryFile))
+        for result in selectTypesReply["results"]:
+            if float(result["number"]) < 1.1: 
+                continue # TEMP - ignore under 1.1
+            queryFile = self.__cacheLocation + "/DESCRIBE TYPE " + re.sub(r'\.', '_', result["number"]) + ".json"
+            jreply = json.load(open(queryFile))
+            if "count" in result:
+                jreply["count"] = result["count"]
+            yield jreply
+            
+    def __isSchemaCached(self):
+        queryFile = self.__cacheLocation + "/SELECT TYPES.json"
+        if not os.path.isfile(queryFile):
+            return False
+        selectTypesReply = json.load(open(queryFile))
+        for result in selectTypesReply["results"]:
+            if float(result["number"]) < 1.1: 
+                continue # TEMP - ignore under 1.1
+            queryFile = self.__cacheLocation + "/DESCRIBE TYPE " + re.sub(r'\.', '_', result["number"]) + ".json"
+            if not os.path.isfile(queryFile):
+                return False
+        return True        
         
-    def __cacheDescribeTypes(self):
-        pass
+    # Elapsed Time to cache schema in 50 pieces: 136.819022894
+    def __cacheSchema(self):
+        start = time.time()
+        reply = self.query("SELECT TYPES")
+        queriesQueue = Queue.Queue()
+        for i in range(self.__poolSize):
+            fmqlIF = self.__fmqlIF # TODO: shared makes no speed difference (make sure)
+            t = ThreadedQueriesCacher(fmqlIF, queriesQueue, self.__cacheLocation)
+            t.setDaemon(True)
+            t.start()
+        logging.info("Caching %d types at a time" % self.__poolSize)
+        for result in reply["results"]:
+            if float(result["number"]) < 1.1: 
+                continue
+            queriesQueue.put("DESCRIBE TYPE " + re.sub(r'\.', '_', result["number"]))
+        queriesQueue.join()
+        logging.info("Elapsed Time to cache schema in %d pieces: %s" % (self.__poolSize, time.time() - start))        
         
     DESCRIBE_TEMPL = "DESCRIBE %s CSTOP %s LIMIT %d OFFSET %d"
         
@@ -100,15 +162,12 @@ class FMQLCacher:
         This is a generator object that avoids the need for every one
         of the results of a query to be in memory for processing. 
                 
-        for result in describe(file ...):
-            print result
-            
-        Ex time: Elapsed Time to cache file 9_6 in 35 pieces: 23.8363921642
-            
+        Invoke with:
+            for cnt, entry in enumerate(.describeFileEntries()) 
+
         TODO: 
-        - break out as iterator (__iter__) that calls this method as its
-        generator, 
-          for i, result in enumerate(fmqlCacher.fmqlResultIterator(query, limit))
+        - may make iterator/generator more explicit by returning one.
+          ex/ FMQLFileIterator
         """
         if not self.__isDescribeCached(file, limit, cstop):
             self.__cacheDescribe(file, limit, cstop)
@@ -131,7 +190,6 @@ class FMQLCacher:
         offset = 0
         while True:
             loquery = FMQLCacher.DESCRIBE_TEMPL % (file, cstop, limit, offset)
-            print loquery
             queryFile = self.__cacheLocation + "/" + loquery + ".json"
             if not os.path.isfile(queryFile):
                 return False
@@ -143,43 +201,26 @@ class FMQLCacher:
             
     def __cacheDescribe(self, file, limit, cstop):
         start = time.time()
-        reply = urllib2.urlopen(self.__fmqlEP + "?" + urllib.urlencode({"fmql": "COUNT " + file})).read()
+        # Never cache COUNT. Go direct.
+        reply = self.__fmqlIF.query("COUNT " + file)
         total = int(json.loads(reply)["count"])
         goes = total/limit + 1
         logging.info("Caching complete file %s in %d pieces" % (file, goes))
         queriesQueue = Queue.Queue()
         offset = 0
+        noQueries = total/limit + 1
+        noThreads = noQueries if noQueries < self.__poolSize else self.__poolSize
         for i in range(goes):
-            t = ThreadedEPQueriesCacher(self.__fmqlEP, queriesQueue, self.__cacheLocation)
+            fmqlIF = self.__fmqlIF # TODO: shared makes no speed difference (make sure)
+            t = ThreadedQueriesCacher(fmqlIF, queriesQueue, self.__cacheLocation)
             t.setDaemon(True)
             t.start()
         for i in range(goes):
             queriesQueue.put(FMQLCacher.DESCRIBE_TEMPL % (file, cstop, limit, offset))
             offset += limit
         queriesQueue.join()
-        logging.info("Elapsed Time to cache file %s in %d pieces: %s" % (file, goes, time.time() - start))
-            
-    def __epCache(self, query):
-        logging.info("%s: Sending FMQL EP Query <%s> as not in Cache" % (self.vistaLabel, query))
-        reply = urllib2.urlopen(self.__fmqlEP + "?" + urllib.urlencode({"fmql": query})).read()
-        return self.__cacheReply(query, reply)
-
-    def __rpcCache(self, query):
-        logging.info("%s: Invoking FMQL RPC <%s> as not in Cache" % (self.vistaLabel, query))
-        if re.match(r'DESCRIBE TYPE', query):
-            rpcArg = "OP:DESCRIBETYPE^TYPE:%s" % re.split("TYPE ", query)[1]
-        else:
-            rpcArg = "OP:SELECTALLTYPES"
-        reply = self.__rpcCPool.invokeRPC("CG FMQL QP", [rpcArg])
-        return self.__cacheReply(query, reply)
-        
-    def __cacheReply(self, query, reply):
-        jreply = json.loads(reply)
-        jcache = open(self.__cacheLocation + "/" + query + ".json", "w")
-        json.dump(jreply, jcache)
-        jcache.close()
-        return jreply
-        
+        logging.info("Elapsed Time to cache file %s in %d pieces: %s" % (file, noThreads, time.time() - start))
+                    
 class FMQLDescribeResult(object):
     """
     TODO: 
@@ -224,6 +265,11 @@ class FMQLDescribeResult(object):
                 continue
             fdr[field] = value["value"]
         return fdr
+        
+    def datapoints(self):
+        # Want to count "data points": cnodes, individual values etc.
+        # ie/ report on available data points (atomic values) vs used
+        pass
                 
 class RPCLogger:
     def __init__(self):
@@ -231,37 +277,92 @@ class RPCLogger:
     def logInfo(self, tag, msg):
         pass
     def logError(self, tag, msg):
-        self.__log(tag, msg)
         logging.critical("BROKERRPC Problem -- %s %s" % (tag, msg))
         
-class ThreadedEPQueriesCacher(threading.Thread):
-
-    def __init__(self, fmqlEP, queriesQueue, cacheLocation):
+# Elapsed Time to cache file 9_6 in 35 pieces: 104.36938405
+class ThreadedQueriesCacher(threading.Thread):
+    """
+    TODO:
+    - go generic: http://code.activestate.com/recipes/577187-python-thread-pool/
+      - pool manages the overall task queue ie/ queriesQueue ie/ ala tie in to rpc pool
+    - check out Twisted as an alternative
+    """
+    def __init__(self, fmqlIF, queriesQueue, cacheLocation):
         threading.Thread.__init__(self)
-        self.__fmqlEP = fmqlEP
+        self.__fmqlIF = fmqlIF
         self.__queriesQueue = queriesQueue
         self.__cacheLocation = cacheLocation
         
     def run(self):
         while True:
             query = self.__queriesQueue.get()
-            reply = urllib2.urlopen(self.__fmqlEP + "?" + urllib.urlencode({"fmql": query})).read()
+            reply = self.__fmqlIF.query(query)
             jcache = open(self.__cacheLocation + "/" + query + ".json", "w")
             jcache.write(reply)
             jcache.close()
-            logging.info("Cached " + query)
+            # Monitoring progress with self.__queriesQueue.qsize():
+            # - Problem with pool == 20 or so. Get 0 for last ones and then a hang.
+            logging.info("Cached %s" % (query))
             self.__queriesQueue.task_done()
+            
+class FMQLInterface(object):
+    """
+    TODO: urllib2 etc timeout in seconds (instead of ? default)
+    ... socket.setdefaulttimeout(default_timeout)
+    
+    Allow access to either the RPC directly (connection pool) or 
+    to the FMQL EP. Note that you shouldn't invoke more RPCs than
+    the RPC pool size at any one time.
+    
+    Note: copy of fmqlc utility. 
+    """
+    def __init__(self, fmqlEP=None, rpcCPool=None):
+        self.fmqlEP = fmqlEP
+        self.rpcCPool = rpcCPool
+        if not (fmqlEP or rpcCPool):
+            raise Exception("Must specific either an RPC CPool or an FMQL EP")
+    
+    def query(self, query):
+        if self.rpcCPool:
+            reply = self.rpcCPool.invokeRPC("CG FMQL QP", [self.__queryToRPCForm(query)])
+            return reply
+        return urllib2.urlopen(self.fmqlEP + "?" + urllib.urlencode({"fmql": query})).read()
+
+    QUERYFORMS = { # TODO: enforce mandatory
+        "COUNT": ["COUNT", [("TYPE", "COUNT ([\d\_]+)")]],
+        "DESCRIBE TYPE": ["DESCRIBETYPE", [("TYPE", "DESCRIBE TYPE ([\d\_]+)")]],
+        "DESCRIBE [\d\_]": ["DESCRIBE", [("TYPE", "DESCRIBE ([\d\_]+)"), ("LIMIT", "LIMIT (\d+)"), ("OFFSET", "OFFSET (\d+)"), ("CNODESTOP", "CSTOP (\d+)")]],
+        "SELECT TYPES": ["SELECTALLTYPES", []]
+    }
+        
+    def __queryToRPCForm(self, query):
+        for qMatch, qPieces in FMQLInterface.QUERYFORMS.items():
+            if re.match(qMatch, query):
+                rpcForm = "OP:" + qPieces[0]
+                for rpcArg, rpcArgSrch in qPieces[1]:
+                    match = re.search(rpcArgSrch, query)
+                    if match:
+                        rpcForm += "^"
+                        rpcForm += rpcArg + ":" + match.group(1)
+                return rpcForm     
+        raise Exception("Query %s can't be turned into RPC form" % query)
         
 # ######################## Module Demo ##########################
             
 def demo():
+
     """
     Simple Demo of this Module
     """
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     fcm = FMQLCacher("Caches")
     fcm.setVista("CGVISTA", "http://vista.caregraf.org/fmqlEP")
-    for entry in fcm.describeFileEntries("9_6"):
+    for i, scheme in enumerate(fcm.describeSchemaTypes()):
+        if "count" in scheme:
+            print "%d: %s (%s)" % (i, scheme["number"], scheme["count"])
+        else:
+            print "%d: %s" % (i, scheme["number"])
+    for entry in fcm.describeFileEntries("9_6", cstop="1000"):
         print entry["uri"]["label"]
                 
 if __name__ == "__main__":

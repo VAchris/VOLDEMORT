@@ -25,6 +25,7 @@ __all__ = ['VistaBuilds']
 class VistaBuilds(object):
     """
     TODO:
+    - bring 9.7 install in here too ie/ Builds and Installs.
     - pkg tagger (list of regexps - [(r'xx', PKGNAME)] ie build pkg tagger
     - current version grabs everything about every build into a Cache. Instead
     grab select builds only, one by one. ex/ grab only those not in base.

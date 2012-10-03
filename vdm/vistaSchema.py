@@ -93,25 +93,17 @@ class VistaSchema(object):
         """
         Index schema - will force caching if not already in cache
         """
-        # Counts from SELECT TYPES. Details from DESCRIBE TYPE.
+        logging.info("%s: Schema - building Schema Index ..." % self.vistaLabel)
         schemas = {}
-        schemaReply = self.__fmqlCacher.query(self.vistaLabel, "SELECT TYPES")
         start = datetime.now()
-        for result in schemaReply["results"]:
-            fileId = result["number"]
-            # TODO - Temporary - ignore Files under 1.1
-            if float(fileId) < 1.1:
-                continue
+        for i, dtResult in enumerate(self.__fmqlCacher.describeSchemaTypes()):
+            fileId = dtResult["number"]
             fmqlFileId = re.sub(r'\.', '_', fileId)
-            dtReply = self.__fmqlCacher.query(self.vistaLabel, "DESCRIBE TYPE %s" % fmqlFileId)
-            # Means bad file id in SELECT TYPES. Record this.
-            if "error" in dtReply:
+            if "error" in dtResult:
                 self.badSelectTypes.append(fileId)
                 continue
-            if "count" in result:
-                dtReply["count"] = result["count"]
-            schemas[fmqlFileId] = dtReply 
-        logging.info("%s: Schema Building (with caching) took %s" % (self.vistaLabel, datetime.now()-start))
+            schemas[fmqlFileId] = dtResult
+        logging.info("%s: ... building (with caching) took %s" % (self.vistaLabel, datetime.now()-start))
         self.__schemas = schemas
 
 # ######################## Module Demo ##########################
@@ -138,7 +130,7 @@ def demo():
     cacher = FMQLCacher("Caches")
     cacher.setVista("CGVISTA", "http://vista.caregraf.org/fmqlEP") 
     vair = VistaSchema("CGVISTA", cacher)
-    print vair.getSchema("2")
+    print "Name of file 2: %s" % vair.getSchema("2")["name"]
                 
 if __name__ == "__main__":
     demo()
