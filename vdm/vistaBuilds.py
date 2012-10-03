@@ -25,9 +25,9 @@ __all__ = ['VistaBuilds']
 class VistaBuilds(object):
     """
     TODO:
+    - pkg tagger (list of regexps - [(r'xx', PKGNAME)] ie build pkg tagger
     - current version grabs everything about every build into a Cache. Instead
     grab select builds only, one by one. ex/ grab only those not in base.
-    - move to nuanced FMQL ie/ getting file multiple only etc (need new gold)
     """
 
     def __init__(self, vistaLabel, fmqlCacher):
@@ -37,26 +37,6 @@ class VistaBuilds(object):
                 
     def __str__(self):
         return "Builds of %s" % self.vistaLabel
-        
-    __QUERY_ALL = "DESCRIBE 9_6 CSTOP 10000"
-    __ALL_LIMIT = 400
-        
-    # TODO: consider on demand use once know shape of Reports.
-    __GRANULAR_QUERIES__ = {"DESCRIBE BROUTINES": "DESCRIBE 9_67 IN %s FILTER(.01=\"1-9.8\") CSTOP 1000", "DESCRIBE BFILES": "DESCRIBE 9_64 IN %s CSTOP 1000", "DESCRIBE BGLOBALS": "DESCRIBE 9_67 IN %s FILTER(.01=\"1-8994\") CSTOP 1000", "DESCRIBE BRPCS": "DESCRIBE 9_67 IN %s FILTER(.01=\"1-8994\") CSTOP 1000"}
-        
-    def cacheAll(self):
-        """
-        Cache everything needed for builds reports. Supports a "cache all"
-        and only then report approach.
-        """
-        start = datetime.now()
-        
-        noBuilds = int(self.__fmqlCacher.query(self.vistaLabel, "COUNT 9_6")["count"])
-        logging.info("%s: caching %d builds" % noBuilds)
-        
-        self.__fmqlCacher.queryLimited(self.vistaLabel, VistaBuilds.__QUERY_ALL__, limit=VistaBuilds.__ALL_LIMIT)
-            
-        logging.info("%s: Caching took %s" % (self.vistaLabel, datetime.now()-start))
                           
     def getBuildAbouts(self):
         """
@@ -89,7 +69,7 @@ class VistaBuilds(object):
                 fls[flId].append(buildFile)
         return fls
         
-    def getBuildGlobals(self):
+    def getBuildGlobals(self, buildId):
         """
         Precise Query: DESCRIBE 9_67 IN %s FILTER(.01=\"1-8994\") CSTOP 1000
         """
@@ -123,16 +103,12 @@ class VistaBuilds(object):
         
     def getRPCs(self):
         pass
+        
+    __ALL_LIMIT = 200
                 
     def __indexNCleanBuilds(self):
         """
         Index and clean builds - will force caching if not already in cache
-                
-        Old Run Speeds (slow n/w/ single threaded):
-        CGVISTA: Caching 6837 builds took ...
-        - 100: 0:09:47.216361
-        - 200: 0:08:19.230484
-        - 400: 0:07:56.469243 ... yield makes no difference. All n/w I/O. Thread it.
         """
         start = datetime.now()
         self.__buildAbouts = OrderedDict()
@@ -142,7 +118,7 @@ class VistaBuilds(object):
         self.__buildRoutines = {} # from build components
         self.__buildRPCs = {} # from build components
         limit = 1000 if self.vistaLabel == "GOLD" else VistaBuilds.__ALL_LIMIT
-        for buildResult in self.__fmqlCacher.queryLimited(self.vistaLabel, VistaBuilds.__QUERY_ALL, limit=limit):
+        for buildResult in self.__fmqlCacher.describeFileEntries("9_6", limit=limit, cstop=10000):
             dr = FMQLDescribeResult(buildResult)
             id = buildResult["uri"]["value"]
             self.__buildAbouts[id] = dr.cstopped(flatten=True)
@@ -150,7 +126,7 @@ class VistaBuilds(object):
                 self.__buildFiles[id] = dr.cnodes("file")
             if "multiple_build" in dr.cnodeFields():
                 self.__buildMultiples[id] = dr.cnodes("multiple_build")
-                # TBD: may not need as another codes field has this
+                # TODO: may not need as another codes field has this. Add as accessor
                 self.__buildAbouts[id]["vse:is_multiple"] = True # synthesized
             if "package_namespace_or_prefix" in dr.cnodeFields():
                 pass # may join?
