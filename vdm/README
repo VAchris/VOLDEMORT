@@ -1,0 +1,3 @@
+VDM VistA Meta Data Framework
+-----------------------------
+A Python framework for accessing, analyzing and reporting on Vista Meta data. This data is accessed from live VistAs using FMQL.
