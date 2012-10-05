@@ -10,7 +10,9 @@
 Module for managing a Cache of FMQL responses. Responses can come from a full RESTful FMQL endpoint or directly from an FMQL RPC. Caches for named VistAs are managed in a named "cacheLocation" directory.
 
 TODO - Changes/Additions Planned:
-- finish thread FMQL EP calls for schema and add for 
+- exceptions in thread:
+  except: sys.exit()
+  and may need to put threads into an array to keep around (check 25 pool again)
 - support read/write from ZIPs
 - remove support for many Vistas at once ie/ many labels ie/ one Cacher per VistA
 - support Application Proxy mechanism once added to brokerRPC
@@ -53,7 +55,7 @@ class FMQLCacher:
       - Elapsed Time to cache schema in 5 pieces: 149.387557983
       - Elapsed Time to cache schema in 10 pieces: 70.3322050571
       - Elapsed Time to cache schema in 15 pieces: 50.4330279827
-      Issue: if go to 20, hangs once has them all. Doesn't depend on counting
+      TODO: if go to 20, stops once has them all. Doesn't depend on counting
       queue size but in print outs the queue does go to 0 for all the last elements.
     - EP:
       - Elapsed Time to cache schema in 10 pieces: 160.150575876
