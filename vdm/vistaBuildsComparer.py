@@ -9,14 +9,14 @@
 VOLDEMORT Builds Comparison Report Generator
 
 TODO:
-- see comments on FORKS etc ie/ do simplest version
-- consider 9_7 include ... in there?
+- package namespace or prefix note
 """
 
 import re
 import json
 import sys
 import os
+import cgi
 from datetime import datetime 
 from vistaBuilds import VistaBuilds
 from vdmU import HTMLREPORTHEAD, HTMLREPORTTAIL, WARNING_BLURB
@@ -81,12 +81,14 @@ class VistaBuildsComparer(object):
         reportBuilder.dateRanges(self.__bBuilds.describeBuild(baseBuilds[0])["date_distributed"], self.__bBuilds.describeBuild(baseBuilds[-1])["date_distributed"], self.__oBuilds.describeBuild(otherBuilds[0])["date_distributed"], self.__oBuilds.describeBuild(otherBuilds[-1])["date_distributed"])
         
         self.__buildOneOnlyReport(reportBuilder, self.__bBuilds, baseOnlyBuilds, True)
+        self.__buildOneOnlyReport(reportBuilder, self.__oBuilds, otherOnlyBuilds, False)
         
     def __buildOneOnlyReport(self, reportBuilder, builds, buildsNamesToShow, base=True):
         reportBuilder.startOneOnly(len(buildsNamesToShow), base)
         for no, buildName in enumerate(buildsNamesToShow, start=1):
             buildAbout = builds.describeBuild(buildName)
-            reportBuilder.oneOnly(no, buildName, buildAbout["date_distributed"] if "date_distributed" in buildAbout else "", "", "XXX", (0, 0, 0, 0))
+            frgrm = (len(builds.describeBuildFiles(buildName)), len(builds.describeBuildRoutines(buildName)), len(builds.describeBuildGlobals(buildName)), len(builds.describeBuildRPCs(buildName)), len(builds.describeBuildMultiples(buildName)))
+            reportBuilder.oneOnly(no, buildName, buildAbout["date_distributed"] if "date_distributed" in buildAbout else "", "", "NATIONAL" if "track_package_nationally" in buildAbout and buildAbout["track_package_nationally"] == "YES" else "LOCAL", buildAbout["type"] if "type" in buildAbout else "", buildAbout["description_of_enhancements"] if "description_of_enhancements" in buildAbout else "", frgrm)
         reportBuilder.endOneOnly()        
         
 class VBHTMLReportBuilder:
@@ -106,23 +108,26 @@ class VBHTMLReportBuilder:
         self.__countsETCMU += "<dt>%s Dates</dt><dd>%s --> %s</dd><dt>%s Dates</dt><dd>%s --> %s</dd></dl></div>" % (self.__bVistaLabel, baseStart, baseEnd, self.__oVistaLabel, otherStart, otherEnd)
         
     def startOneOnly(self, uniqueCount, base=True):
-        BASEBLURB = "%d builds are unique to %s. Along with missing fields, these files indicate baseline builds missing from %s. The Build reports cover builds in more detail." % (uniqueCount, self.__bVistaLabel, self.__oVistaLabel)
-        OTHERBLURB = "%d files are unique to %s. Along with custom fields added to common files, these indicate the extent of custom functionality in this VistA." % (uniqueCount, self.__oVistaLabel)
+        BASEBLURB = "%d builds are unique to %s and missing from %s." % (uniqueCount, self.__bVistaLabel, self.__oVistaLabel)
+        OTHERBLURB = "%d builds are unique to %s and missing from %s." % (uniqueCount, self.__oVistaLabel, self.__bVistaLabel)
         self.__oneOnlyIsBase = base
         oneOnlyStart = "<div class='report' id='%s'><h2>Builds only in %s </h2><p>%s</p>" % ("baseOnly" if base else "otherOnly", self.__bVistaLabel if base else self.__oVistaLabel, BASEBLURB if base else OTHERBLURB)
         self.__oneOnlyItems = [oneOnlyStart]
         # TODO: add in package once there
-        tblStartOne = "<table><tr><th>#</th><th>Name</th><th>Released</th><th>Installed</th><th>Scope<br/># files/routines/globals/rpcs</th></tr>"
+        tblStartOne = "<table><tr><th>#</th><th>Name</th><th>Released</th><th>Installed</th><th>Scope/Type<br/># files/routines/globals/rpcs/multiples</th><th>Description</th></tr>"
         self.__oneOnlyItems.append(tblStartOne)
         
-    def oneOnly(self, no, name, released, installed, scope, frgr):
+    def oneOnly(self, no, name, released, installed, scope, type, description, frgrm):
         """
         no not necessarily sequential as skip multis
         """
         self.__oneOnlyItems.append("<tr id='%s'><td>%d</td>" % (name, no))
         self.__oneOnlyItems.append("<td>%s</td>" % (name))
         self.__oneOnlyItems.append("<td>%s</td><td>%s</td>" % (released, installed))
-        self.__oneOnlyItems.append("<td>%s<br/>%s/%s/%s/%s</td></tr>" % (scope, frgr[0], frgr[1], frgr[2], frgr[3]))
+        self.__oneOnlyItems.append("<td>%s/%s<br/>%s/%s/%s/%s/%s</td>" % (scope, type, frgrm[0], frgrm[1], frgrm[2], frgrm[3], frgrm[4]))
+        # Long lines cause wrap problems
+        description = cgi.escape(re.sub(r'\=\=\=\=\=\=+', '=====', description[0:1000]))
+        self.__oneOnlyItems.append("<td>%s</td></tr>" % description)
         
     def endOneOnly(self):
         self.__oneOnlyItems.append("</table></div>")
@@ -139,12 +144,12 @@ class VBHTMLReportBuilder:
         
         warning = "<p><strong>Warning:</strong> %s</p>" % WARNING_BLURB if WARNING_BLURB else ""        
         # TODO: use bVistaLabel etc names
-        nav = "<p>Jump to: <a href='#OtherOnlySINGLE'>Other Only Single</a> | <a href='#OtherOnlyMULTI'>Other Only Multi</a> | <a href='#BaseOnlySINGLE'>Base Only Single</a> | <a href='#BaseOnlyMULTI'>Base Only Multi</a></p>"
+        nav = "<p>Jump to: <a href='#otherOnly'>%s Only</a> | <a href='#baseOnly'>%s Only</a></p>" % (self.__oVistaLabel, self.__bVistaLabel)
         
         reportTail = HTMLREPORTTAIL % datetime.now().strftime("%b %d %Y %I:%M%p")
                         
         reportItems = [reportHead, blurb, warning, self.__countsETCMU, nav]
-        # reportItems.extend(self.__otherOnlyItems)
+        reportItems.extend(self.__otherOnlyItems)
         reportItems.extend(self.__baseOnlyItems)
         reportItems.append(reportTail)
                 

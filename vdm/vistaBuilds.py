@@ -25,10 +25,10 @@ __all__ = ['VistaBuilds']
 class VistaBuilds(object):
     """
     TODO:
-    - move vistaAboutToRDF logic/additions into here and then nix that
-      - goes with all Analytics custom stuff (want gone before OSEHRA meet)
     - bring 9.7 install in here too ie/ Builds and Installs.
+      - date stamps from that
     - pkg tagger (list of regexps - [(r'xx', PKGNAME)] ie build pkg tagger
+      - "package name or prefix"
     - current version grabs everything about every build into a Cache. Instead
     grab select builds only, one by one. ex/ grab only those not in base.
     """
@@ -42,13 +42,17 @@ class VistaBuilds(object):
         return "Builds of %s" % self.vistaLabel
                                           
     def listBuilds(self):
+        """
+        Returns list of build names in Build file order
+        """
         return list(self.__buildAbouts)
         
     def describeBuild(self, buildName):
         """
-        Key for reports:
+        Fields of interest:
         - vse:ien
-        - vse:is_multiple
+        - [type] "SINGLE PACKAGE", "MULTI-PACKAGE", "GLOBAL PACKAGE"
+        - [track_package_nationally]
         - [date_distributed]
         - [package_file_link]
         - [description_of_enhancements]
@@ -67,9 +71,6 @@ class VistaBuilds(object):
             for buildFile in buildFiles:
                 fls[buildFile["vse:file_id"]].append(buildName)
         return fls
-        
-    def getFileFields(self):
-        return set(field for fis in self.__buildFiles.values() for fi in fis for field in fi)
                 
     def describeBuildFiles(self, buildName):
         """
@@ -86,17 +87,17 @@ class VistaBuilds(object):
         TODO: need to preserve order of builds (out of order now)
         """
         # file fields with: set(field for fis in self.__buildFiles.values() for fi in fis for field in fi)
-        return self.__buildFiles[buildName]
+        return [] if buildName not in self.__buildFiles else self.__buildFiles[buildName]
         
     def getGlobals(self):
         pass
         
     def describeBuildGlobals(self, buildName):
+        """        
+        TODO: may remove as doesn't seem to be in any builds (ala GLOBAL BUILD option in 'type')
         """
-        Precise Query: DESCRIBE 9_67 IN %s FILTER(.01=\"1-8994\") CSTOP 1000
-        """
-        pass
-                
+        return [] if buildName not in self.__buildGlobals else self.__buildGlobals[buildName]
+                        
     def getRoutines(self):
         pass
         
@@ -108,7 +109,7 @@ class VistaBuilds(object):
         
         Precise Query: DESCRIBE 9_67 IN %s FILTER(.01=\"1-9.8\") CSTOP 1000
         """
-        return self.__buildRoutines[buildName]
+        return [] if buildName not in self.__buildRoutines else self.__buildRoutines[buildName]
         
     def getRPCs(self):
         pass
@@ -121,19 +122,29 @@ class VistaBuilds(object):
         
         Precise Query: DESCRIBE 9_67 IN %s FILTER(.01=\"1-8994\") CSTOP 1000
         """
-        return self.__buildRPCs[buildName]
+        return [] if buildName not in self.__buildRPCs else self.__buildRPCs[buildName]
         
     def describeBuildMultiples(self, buildName):
-        return [] if buildName not in self.__buildMultiples[name] else self.__buildMultiples[name]
+        """
+        Note that a build may contain others (multiples) and have explicit
+        files/kernel etc. 
+        """
+        return [] if buildName not in self.__buildMultiples else self.__buildMultiples[buildName]
         
     __ALL_LIMIT = 200
                 
     def __indexNCleanBuilds(self):
         """
         Index and clean builds - will force caching if not already in cache
+        
+        CNodes: only see ...
+        'required_build', u'install_questions', u'multiple_build', u'file', 'build_components', u'package_namespace_or_prefix' 
+        but no "global"
         """
         start = datetime.now()
+        types = {}
         self.__buildAbouts = OrderedDict()
+        cfields = {}
         self.__buildFiles = {}
         self.__buildMultiples = {}
         self.__buildGlobals = {}
@@ -150,6 +161,8 @@ class VistaBuilds(object):
             if re.match(r'CGFMQL', name):
                 continue
             self.__buildAbouts[name] = dr.cstopped(flatten=True)
+            for cfield in dr.cnodeFields():
+                cfields[cfield] = ""
             self.__buildAbouts[name]["vse:ien"] = buildResult["uri"]["value"].split("-")[1]
             if "file" in dr.cnodeFields():
                 # catch missing 'file'. TBD: do verify version?
@@ -157,12 +170,11 @@ class VistaBuilds(object):
                 # turn 1- form into straight file id. Note dd_number is optional
                 for fileAbout in self.__buildFiles[name]:
                     fileAbout["vse:file_id"] = fileAbout["file"][2:]
-            if "multiple_build" in dr.cnodeFields():
-                self.__buildMultiples[name] = dr.cnodes("multiple_build")
-                # TODO: may not need as another codes field has this. Add as accessor
-                self.__buildAbouts[name]["vse:is_multiple"] = True # synthesized
-            else:
-                self.__buildAbouts[name]["vse:is_multiple"] = False
+            if "global" in dr.cnodeFields():
+                self.__buildGlobals[name] = [cnode for cnode in dr.cnodes("global") if "global" in cnode]
+            if "multiple_build" in dr.cnodeFields():                
+                self.__buildMultiples[name] = [cnode for cnode in dr.cnodes("multiple_build") if "multiple_build" in cnode]
+            # TODO: required build for tracing if want to be full Build analysis framework
             if "package_namespace_or_prefix" in dr.cnodeFields():
                 pass # may join?
             # Strange structure: entry for all possibilities but only some have data
