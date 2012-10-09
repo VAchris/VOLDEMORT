@@ -25,6 +25,8 @@ __all__ = ['VistaBuilds']
 class VistaBuilds(object):
     """
     TODO:
+    - move vistaAboutToRDF logic/additions into here and then nix that
+      - goes with all Analytics custom stuff (want gone before OSEHRA meet)
     - bring 9.7 install in here too ie/ Builds and Installs.
     - pkg tagger (list of regexps - [(r'xx', PKGNAME)] ie build pkg tagger
     - current version grabs everything about every build into a Cache. Instead
@@ -38,48 +40,67 @@ class VistaBuilds(object):
                 
     def __str__(self):
         return "Builds of %s" % self.vistaLabel
-                          
-    def getBuildAbouts(self):
-        """
-        A Summary of each build, returned in load order.
-        """
-        return self.__buildAbouts
+                                          
+    def listBuilds(self):
+        return list(self.__buildAbouts)
         
-    def getBuildFiles(self, buildId):
+    def describeBuild(self, buildName):
         """
-        From Build (9.6)/File (9.64)
-        
-        TODO: need to preserve order of builds (out of order now)
+        Key for reports:
+        - vse:ien
+        - vse:is_multiple
+        - [date_distributed]
+        - [package_file_link]
+        - [description_of_enhancements]
+        Others are less interesting.
         """
-        return self.__buildFiles[buildId]
-        
+        return self.__buildAbouts[buildName]
+                                
     def getFiles(self):
         """
-        All files effected with play by play effect of each (installed) build
-        
+        All files created/updated in the build system with list of builds effecting them
+                
         Precise Query: DESCRIBE 9_64 IN %s CSTOP 1000
         """
         fls = defaultdict(list)
-        for buildId, buildFiles in self.__buildFiles.items():
+        for buildName, buildFiles in self.__buildFiles.items():
             for buildFile in buildFiles:
-                # TODO: centralize this and restatement of values
-                if "file" not in buildFile:
-                    logging.error("No 'file' in %s" % buildFile)
-                    continue
-                flId = buildFile["file"][2:] # get rid of 1-
-                fls[flId].append(buildFile)
+                fls[buildFile["vse:file_id"]].append(buildName)
         return fls
         
-    def getBuildGlobals(self, buildId):
+    def getFileFields(self):
+        return set(field for fis in self.__buildFiles.values() for fi in fis for field in fi)
+                
+    def describeBuildFiles(self, buildName):
         """
-        Precise Query: DESCRIBE 9_67 IN %s FILTER(.01=\"1-8994\") CSTOP 1000
+        From Build (9.6)/File (9.64)
+        
+        Fields:
+        vse:file_id (from 'file')
+        data_comes_with_file
+        send_full_or_partial_dd
+        update_the_data_dictionary
+        sites_data: overwrite etc.
+        ... others less interesting
+        
+        TODO: need to preserve order of builds (out of order now)
         """
-        pass
+        # file fields with: set(field for fis in self.__buildFiles.values() for fi in fis for field in fi)
+        return self.__buildFiles[buildName]
         
     def getGlobals(self):
         pass
         
-    def getBuildRoutines(self, buildId):
+    def describeBuildGlobals(self, buildName):
+        """
+        Precise Query: DESCRIBE 9_67 IN %s FILTER(.01=\"1-8994\") CSTOP 1000
+        """
+        pass
+                
+    def getRoutines(self):
+        pass
+        
+    def describeBuildRoutines(self, buildName):
         """
         From Build Component (9.67)/build component=Build (.01=1-9.8)
         
@@ -87,12 +108,12 @@ class VistaBuilds(object):
         
         Precise Query: DESCRIBE 9_67 IN %s FILTER(.01=\"1-9.8\") CSTOP 1000
         """
-        return self.__buildRoutines[buildId]
+        return self.__buildRoutines[buildName]
         
-    def getRoutines(self):
+    def getRPCs(self):
         pass
-                
-    def getBuildRPCs(self, buildId):
+        
+    def describeBuildRPCs(self, buildName):
         """
         From Build Component (9.67)/build component=Build (.01=1-8994)
         
@@ -100,10 +121,10 @@ class VistaBuilds(object):
         
         Precise Query: DESCRIBE 9_67 IN %s FILTER(.01=\"1-8994\") CSTOP 1000
         """
-        return self.__buildRPCs[buildId]
+        return self.__buildRPCs[buildName]
         
-    def getRPCs(self):
-        pass
+    def describeBuildMultiples(self, buildName):
+        return [] if buildName not in self.__buildMultiples[name] else self.__buildMultiples[name]
         
     __ALL_LIMIT = 200
                 
@@ -118,17 +139,30 @@ class VistaBuilds(object):
         self.__buildGlobals = {}
         self.__buildRoutines = {} # from build components
         self.__buildRPCs = {} # from build components
+        self.__buildBadMeta = {} # note bad meta
         limit = 1000 if self.vistaLabel == "GOLD" else VistaBuilds.__ALL_LIMIT
         for buildResult in self.__fmqlCacher.describeFileEntries("9_6", limit=limit, cstop=10000):
             dr = FMQLDescribeResult(buildResult)
-            id = buildResult["uri"]["value"]
-            self.__buildAbouts[id] = dr.cstopped(flatten=True)
+            name = buildResult["name"]["value"]
+            if name in self.__buildAbouts:
+                raise Exception("Two builds in this VistA have the same name %s - breaks assumptions" % name)
+            # Don't show FMQL itself
+            if re.match(r'CGFMQL', name):
+                continue
+            self.__buildAbouts[name] = dr.cstopped(flatten=True)
+            self.__buildAbouts[name]["vse:ien"] = buildResult["uri"]["value"].split("-")[1]
             if "file" in dr.cnodeFields():
-                self.__buildFiles[id] = dr.cnodes("file")
+                # catch missing 'file'. TBD: do verify version?
+                self.__buildFiles[name] = [cnode for cnode in dr.cnodes("file") if "file" in cnode]
+                # turn 1- form into straight file id. Note dd_number is optional
+                for fileAbout in self.__buildFiles[name]:
+                    fileAbout["vse:file_id"] = fileAbout["file"][2:]
             if "multiple_build" in dr.cnodeFields():
-                self.__buildMultiples[id] = dr.cnodes("multiple_build")
+                self.__buildMultiples[name] = dr.cnodes("multiple_build")
                 # TODO: may not need as another codes field has this. Add as accessor
-                self.__buildAbouts[id]["vse:is_multiple"] = True # synthesized
+                self.__buildAbouts[name]["vse:is_multiple"] = True # synthesized
+            else:
+                self.__buildAbouts[name]["vse:is_multiple"] = False
             if "package_namespace_or_prefix" in dr.cnodeFields():
                 pass # may join?
             # Strange structure: entry for all possibilities but only some have data
@@ -138,9 +172,9 @@ class VistaBuilds(object):
                     if "entries" not in bc:
                         continue
                     if bc["build_component"] == "1-8994":
-                        self.__buildRPCs[id] = bc["entries"] 
+                        self.__buildRPCs[name] = bc["entries"] 
                     if bc["build_component"] == "1-9.8":
-                        self.__buildRoutines[id] = bc["entries"]
+                        self.__buildRoutines[name] = bc["entries"]
                     continue
         logging.info("%s: Indexing, cleaning (with caching) %d builds took %s" % (self.vistaLabel, len(self.__buildAbouts), datetime.now()-start))
                 
@@ -161,12 +195,14 @@ def demo():
     cacher = FMQLCacher("Caches")
     cacher.setVista("CGVISTA", fmqlEP="http://vista.caregraf.org/fmqlEP")
     cgbs = VistaBuilds("CGVISTA", cacher)
-    cacher = FMQLCacher("Caches")
-    cacher.setVista("GOLD")
-    gbs = VistaBuilds("GOLD", cacher)   
-    print "Number Builds in CG: %d, in GOLD: %d" % (len(cgbs.getBuildAbouts()), len(gbs.getBuildAbouts()))
-    gbsFiles = gbs.getFiles()
-    print "%d Files changed in GOLD builds: %s" % (len(gbsFiles), sorted(list(gbsFiles)))
+    buildNames = cgbs.listBuilds()
+    print "First build is: %s" % buildNames[0]
+    print cgbs.describeBuild(buildNames[0])
+    print cgbs.describeBuildFiles(buildNames[0])
+    flsEffected = cgbs.getFiles()
+    for i, (fid, fi) in enumerate(flsEffected.items(), 1):
+        print "%d: %s - %s" % (i, fid, str(fi))
+    print len(list(flsEffected))
                 
 if __name__ == "__main__":
     demo()
