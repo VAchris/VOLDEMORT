@@ -10,6 +10,7 @@ Current Work (as of 10/9/12)
 
 Installation and running
 ------------------------
+(For a fuller explanation see: https://github.com/OSEHR/VOLDEMORT/wiki/Install-And-Run)
 1. Clone this repository from git
 
 2. Go into the VOLDEMORT directory and Install the python package
