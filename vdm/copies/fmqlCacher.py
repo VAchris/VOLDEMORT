@@ -13,7 +13,14 @@ TODO - Changes/Additions Planned:
 - exceptions in thread:
   except: sys.exit()
   and may need to put threads into an array to keep around (check 25 pool again)
+- option to filter out (ex/ redundancies in builds etc.): can choose what to cache
+  - yes/no -> TRUE FALSE ie/ boolean as standard 
+  - apply default if field missing
+  ... or add these first to Describe flattener
+- uri level in flatten describe including keeping label ...
+- < 1.1 check for Schema once FOIA GOLD has it
 - support read/write from ZIPs
+- /usr/share/vdm/cache and the equivalent on windows (will allow setting)
 - remove support for many Vistas at once ie/ many labels ie/ one Cacher per VistA
 - support Application Proxy mechanism once added to brokerRPC
 """
@@ -96,7 +103,7 @@ class FMQLCacher:
         jcache = open(self.__cacheLocation + "/" + query + ".json", "w")
         json.dump(jreply, jcache)
         jcache.close()
-        logging.info("Cached " + query)
+        # logging.info("Cached " + query)
         return jreply
                     
     def describeSchemaTypes(self):
@@ -149,13 +156,13 @@ class FMQLCacher:
             t = ThreadedQueriesCacher(fmqlIF, queriesQueue, self.__cacheLocation)
             t.setDaemon(True)
             t.start()
-        logging.info("Caching %d types at a time" % self.__poolSize)
+        # logging.info("Caching %d types at a time" % self.__poolSize)
         for result in reply["results"]:
             if float(result["number"]) < 1.1: 
                 continue
             queriesQueue.put("DESCRIBE TYPE " + re.sub(r'\.', '_', result["number"]))
         queriesQueue.join()
-        logging.info("Elapsed Time to cache schema in %d pieces: %s" % (self.__poolSize, time.time() - start))        
+        # logging.info("Elapsed Time to cache schema in %d pieces: %s" % (self.__poolSize, time.time() - start))        
         
     DESCRIBE_TEMPL = "DESCRIBE %s CSTOP %s LIMIT %d OFFSET %d"
         
@@ -181,7 +188,7 @@ class FMQLCacher:
             if not os.path.isfile(queryFile):
                 raise Exception("Thought file was in Cache but it vanished - exiting")
             reply = json.load(open(queryFile, "r"))
-            logging.info("Reading - %s (%d results) - from cache" % (loquery, int(reply["count"])))
+            # logging.info("Reading - %s (%d results) - from cache" % (loquery, int(reply["count"])))
             for result in reply["results"]:
                 yield result
             if int(reply["count"]) != limit:
@@ -207,7 +214,7 @@ class FMQLCacher:
         reply = self.__fmqlIF.query("COUNT " + file)
         total = int(json.loads(reply)["count"])
         goes = total/limit + 1
-        logging.info("Caching complete file %s in %d pieces" % (file, goes))
+        # logging.info("Caching complete file %s in %d pieces" % (file, goes))
         queriesQueue = Queue.Queue()
         offset = 0
         noQueries = total/limit + 1
@@ -221,13 +228,16 @@ class FMQLCacher:
             queriesQueue.put(FMQLCacher.DESCRIBE_TEMPL % (file, cstop, limit, offset))
             offset += limit
         queriesQueue.join()
-        logging.info("Elapsed Time to cache file %s in %d pieces: %s" % (file, noThreads, time.time() - start))
+        # logging.info("Elapsed Time to cache file %s in %d pieces: %s" % (file, noThreads, time.time() - start))
                     
 class FMQLDescribeResult(object):
     """
     TODO: 
+    - uri label: preserve ex/ package label ("label") and ptr ("value")
+    - apply filters: yes/no -> true/false, apply defaults etc.
     - will move out: not intrinsic to Cache
     - jsona, qualify uri's, container name, typed fields
+      - ie/ don't just flatten uri to literal form ... use : ie/ vista:2-24 etc.
     """
     def __init__(self, result):
         self.__result = result
@@ -242,6 +252,26 @@ class FMQLDescribeResult(object):
             
     def cnodeFields(self):
         return [field for field, value in self.__result.items() if value["type"] == "cnodes"]
+        
+    def noSpecificValues(self):
+        """
+        How many specific values are explicitly asserted? Want to collect
+        data points available. This does NOT count "uri" ie/ identity.
+        """
+        return self.__noSpecificValues(self.__result)
+        
+    def __noSpecificValues(self, dr):
+        no = 0
+        for field, value in dr.items():
+            if field == "uri": # CNodes - no need
+                continue
+            if value["type"] == "cnodes":
+                if "stopped" not in value:
+                    for cnode in value["value"]:
+                        no += self.__noSpecificValues(cnode)
+                continue
+            no += 1
+        return no
         
     def cnodes(self, cnodeField):
         if cnodeField not in self.__result:
@@ -265,13 +295,10 @@ class FMQLDescribeResult(object):
                 if includeCNodes and "stopped" not in value:
                     fdr[field] = [self.__flatten(cnode, nixURI=True) for cnode in value["value"]]
                 continue
+            # TODO: if "uri" - preserve label ie field + "_Label" = "label" or
+            # use () ie/ (9_6-2, "XXX")
             fdr[field] = value["value"]
         return fdr
-        
-    def datapoints(self):
-        # Want to count "data points": cnodes, individual values etc.
-        # ie/ report on available data points (atomic values) vs used
-        pass
                 
 class RPCLogger:
     def __init__(self):
@@ -304,7 +331,6 @@ class ThreadedQueriesCacher(threading.Thread):
             jcache.close()
             # Monitoring progress with self.__queriesQueue.qsize():
             # - Problem with pool == 20 or so. Get 0 for last ones and then a hang.
-            logging.info("Cached %s" % (query))
             self.__queriesQueue.task_done()
             
 class FMQLInterface(object):
