@@ -2,15 +2,11 @@ VOLDEMORT (VDM)
 ===============
 VOLDEMORT (VDM) V1 is a VistA system comparison application that leverages what every VistA knows about itself. It is built with a "Vista Meta Data Framework" written in Python that uses FMQL, the open source FileMan query mechanism to query and cache VistA system data. It compares what a VistA returns to a canonical ("GOLD") VistA definition and produces a series of "difference" reports for file schema, routines and more. VDM V1 is due for release in December 2012.
 
-Current Work (as of 10/2/12)
+Current Work (as of 10/9/12)
 ----------------------------
-1. framework enhancement for processing system build and install information [CHECKED IN]
-
-2. report generator for a "build difference" report [CHECKED IN]
-
-3. optimization (threading) to speed up FMQL calling. The current VDM is network I/O bound [CHECKED IN]
-
-4. a standard Windows install
+1. Documentation - get the Wiki going
+2. A better front end/default app
+... to make the current state and potential of VDM clear before adding more reports and meta data processing.
 
 Installation and running
 ------------------------
