@@ -24,15 +24,23 @@ __all__ = ['VistaBuilds']
 
 class VistaBuilds(object):
     """
+    Lynchpin for most VistA System data reporting.
+    
     TODO:
     - bring 9.7 install in here too ie/ Builds and Installs.
       - date stamps from that
+      - important: ex/ files like 19620.1 showing up in listFiles due to COMPARE DSIR 5.2
+      which though loaded was never installed
+    - build name order: see sort use in compare. 
     - pkg tagger (list of regexps - [(r'xx', PKGNAME)] ie build pkg tagger
-      - "package name or prefix"
+      - "package name or prefix"  
+      - will use (uri, label) form from Cache update
+    - use Cacher filters like "yes/no" -> true/false, default values etc. ie. sparce hard to record on   
+    - handle cnodes generically ie/ if there properly then deref file by name into the desired label for an index. Make the indexes into one dictionary ie/ self.__indexes
+    - consider link into (static) release notes
     - current version grabs everything about every build into a Cache. Instead
     grab select builds only, one by one. ex/ grab only those not in base.
     """
-
     def __init__(self, vistaLabel, fmqlCacher):
         self.vistaLabel = vistaLabel
         self.__fmqlCacher = fmqlCacher
@@ -40,6 +48,14 @@ class VistaBuilds(object):
                 
     def __str__(self):
         return "Builds of %s" % self.vistaLabel
+        
+    def getNoSpecificValues(self):
+        """
+        How many datapoints are available <=> number of fields in indexed entries
+        
+        TODO: expand for tabulation - show file/field=# 
+        """
+        return self.__noSpecificValues
                                           
     def listBuilds(self):
         """
@@ -69,6 +85,9 @@ class VistaBuilds(object):
         fls = defaultdict(list)
         for buildName, buildFiles in self.__buildFiles.items():
             for buildFile in buildFiles:
+                # TODO: remove once FOIA GOLD has this stuff (will go from Cache too)
+                if float(buildFile["vse:file_id"]) < 1.1:
+                    continue
                 fls[buildFile["vse:file_id"]].append(buildName)
         return fls
                 
@@ -105,11 +124,25 @@ class VistaBuilds(object):
         """
         From Build Component (9.67)/build component=Build (.01=1-9.8)
         
+        TODO: issue of no "action". Assume "send to site" (added) vs "delete at site"?
+        
         Includes Delete
         
         Precise Query: DESCRIBE 9_67 IN %s FILTER(.01=\"1-9.8\") CSTOP 1000
         """
         return [] if buildName not in self.__buildRoutines else self.__buildRoutines[buildName]
+        
+    def listInstallationRoutines(self, buildName):
+        """
+        TODO: may add to routines list and support a filter.
+        
+        As opposed to routines in the build, these are routines that run along with the build process. 
+        - comments: "This routine will be run as part of the post-install for patch"
+        - some early builds don't name their routines -- A4A7KILL in A4A7*1.01*11 is clearly a build routine. Asked to run manually.
+        - Some seem to have be batch culled in FOIA (RPMS still has "DG272PT*" is in build DG*5.3*272)
+        - one can call others: in RPMS where GMRAY18 is ... it calls ^GMRAY18A,^GMRAY18B,^GMRAY18C,^GMRAY18D,^GMRAY18E,^GMRAY18F,^GMRAY18G and ^GMRAY18I,^GMRAY18J,^GMRAY18K,^GMRAY18L,^GMRAY18M,^GMRAY18N,^GMRAY18P.
+        """
+        pass
         
     def getRPCs(self):
         pass
@@ -117,6 +150,8 @@ class VistaBuilds(object):
     def describeBuildRPCs(self, buildName):
         """
         From Build Component (9.67)/build component=Build (.01=1-8994)
+        
+        TODO: still need to add to GOLD
         
         Includes Delete
         
@@ -127,7 +162,8 @@ class VistaBuilds(object):
     def describeBuildMultiples(self, buildName):
         """
         Note that a build may contain others (multiples) and have explicit
-        files/kernel etc. 
+        files/kernel etc. Only makes sense in the context of a build ie/ there is
+        no "getMultiples" method.
         """
         return [] if buildName not in self.__buildMultiples else self.__buildMultiples[buildName]
         
@@ -141,19 +177,21 @@ class VistaBuilds(object):
         'required_build', u'install_questions', u'multiple_build', u'file', 'build_components', u'package_namespace_or_prefix' 
         but no "global"
         """
+        logging.info("%s: Builds - building Builds Index ..." % self.vistaLabel)
         start = datetime.now()
-        types = {}
+        self.__noSpecificValues = 0
+        # TODO: move to dict of dicts. Dynamic naming.
         self.__buildAbouts = OrderedDict()
-        cfields = {}
         self.__buildFiles = {}
         self.__buildMultiples = {}
         self.__buildGlobals = {}
         self.__buildRoutines = {} # from build components
         self.__buildRPCs = {} # from build components
-        self.__buildBadMeta = {} # note bad meta
         limit = 1000 if self.vistaLabel == "GOLD" else VistaBuilds.__ALL_LIMIT
-        for buildResult in self.__fmqlCacher.describeFileEntries("9_6", limit=limit, cstop=10000):
+        for i, buildResult in enumerate(self.__fmqlCacher.describeFileEntries("9_6", limit=limit, cstop=10000)):
+            logging.info("... build result %d" % i)
             dr = FMQLDescribeResult(buildResult)
+            self.__noSpecificValues += dr.noSpecificValues()
             name = buildResult["name"]["value"]
             if name in self.__buildAbouts:
                 raise Exception("Two builds in this VistA have the same name %s - breaks assumptions" % name)
@@ -161,8 +199,6 @@ class VistaBuilds(object):
             if re.match(r'CGFMQL', name):
                 continue
             self.__buildAbouts[name] = dr.cstopped(flatten=True)
-            for cfield in dr.cnodeFields():
-                cfields[cfield] = ""
             self.__buildAbouts[name]["vse:ien"] = buildResult["uri"]["value"].split("-")[1]
             if "file" in dr.cnodeFields():
                 # catch missing 'file'. TBD: do verify version?
@@ -215,6 +251,7 @@ def demo():
     for i, (fid, fi) in enumerate(flsEffected.items(), 1):
         print "%d: %s - %s" % (i, fid, str(fi))
     print len(list(flsEffected))
+    print "Number of specific values available: %d" % cgbs.getNoSpecificValues()
                 
 if __name__ == "__main__":
     demo()

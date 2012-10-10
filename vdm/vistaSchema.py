@@ -10,6 +10,7 @@ Module for retrieving, caching and analysing a VistA's schemas returned by FMQL
 
 TODO - Changes/Additions Planned:
 - any FMQLisms in Schema returned move in here
+  - ie/ . not _ to match Builds file ids
 - leverage Packages.csv (https://raw.github.com/OSEHR/VistA-FOIA/master/Packages.csv)
 """
 
@@ -37,6 +38,9 @@ class VistaSchema(object):
         
     def __str__(self):
         return "Schema of %s" % self.vistaLabel
+        
+    def getNoSpecificValues(self):
+        pass # TODO: ala builds etc, count specific values
         
     def listFiles(self, topOnly=False):
         if topOnly:

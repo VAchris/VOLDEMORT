@@ -49,7 +49,7 @@ class VistaBuildsComparer(object):
             except:
                 raise Exception("Bad location for Comparison Reports: %s ... exiting" % reportsLocation)
         
-    def compare(self, format="TEXT"):
+    def compare(self, format="HTML"):
     
         if format == "HTML":
             rb = VBHTMLReportBuilder(self.__bBuilds.vistaLabel, self.__oBuilds.vistaLabel, self.__reportsLocation)
@@ -77,6 +77,8 @@ class VistaBuildsComparer(object):
         # With this can calculate total, baseOnly, otherOnly, both (total - baseOnly + otherOnly), oneOnly (baseOnly + otherOnly); baseMultis = base
         reportBuilder.counts(total=len(allBuilds), common=len(commonBuilds), baseTotal=len(baseBuilds), baseOnly=len(baseOnlyBuilds), otherTotal=len(otherBuilds), otherOnly=len(otherOnlyBuilds))
         
+        reportBuilder.valuesCounts(self.__bBuilds.getNoSpecificValues(), self.__oBuilds.getNoSpecificValues())
+        
         # TODO: base on install. Move into builds ie/ a one shot () date ranges
         reportBuilder.dateRanges(self.__bBuilds.describeBuild(baseBuilds[0])["date_distributed"], self.__bBuilds.describeBuild(baseBuilds[-1])["date_distributed"], self.__oBuilds.describeBuild(otherBuilds[0])["date_distributed"], self.__oBuilds.describeBuild(otherBuilds[-1])["date_distributed"])
         
@@ -103,9 +105,12 @@ class VBHTMLReportBuilder:
     
         self.__countsETCMU = "<div class='report' id='counts'><h2>Build Counts</h2><dl><dt>Total/Common</dt><dd>%d/%d</dd><dt>%s Total/Unique</dt><dd>%d/%d</dd><dt>%s Total/Unique</dt><dd>%d/%d</dd>" % (total, common, self.__bVistaLabel, baseTotal, baseOnly, self.__oVistaLabel, otherTotal, otherOnly) 
         
+    def valuesCounts(self, baseValuesCount, otherValuesCount):
+        self.__countsETCMU += "<dt>Datapoints - Base/Other</dt><dd>%d/%d</dd>" % (baseValuesCount, otherValuesCount)
+        
     def dateRanges(self, baseStart, baseEnd, otherStart, otherEnd):
         
-        self.__countsETCMU += "<dt>%s Dates</dt><dd>%s --> %s</dd><dt>%s Dates</dt><dd>%s --> %s</dd></dl></div>" % (self.__bVistaLabel, baseStart, baseEnd, self.__oVistaLabel, otherStart, otherEnd)
+        self.__countsETCMU += "<dt>%s Dates</dt><dd>%s --> %s</dd><dt>%s Dates</dt><dd>%s --> %s</dd></dl></div>" % (self.__bVistaLabel, baseStart, baseEnd, self.__oVistaLabel, otherStart, otherEnd)   
         
     def startOneOnly(self, uniqueCount, base=True):
         BASEBLURB = "%d builds are unique to %s and missing from %s." % (uniqueCount, self.__bVistaLabel, self.__oVistaLabel)
@@ -178,6 +183,7 @@ class VBFormattedTextReportBuilder:
         print "{:<24}{:^6}".format("Only In Other:", otherOnly)
         
     def flush(self):
+        # allow sys.stdout as out
         reportFileName = self.__reportLocation + "/" + "builds%s_vs_%s.txt" % (re.sub(r' ', '_', self.__bVistaLabel), re.sub(r' ', '_', self.__oVistaLabel))
         with open(reportFileName, "w") as reportFile:
             for reportItem in reportItems:
