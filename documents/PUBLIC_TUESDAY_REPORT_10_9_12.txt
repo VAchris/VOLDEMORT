@@ -1,0 +1,4 @@
+1) The VDM Framework has been optimized and threaded to efficiently download meta data from any VistA (if you're a coder, see here) using either an FMQL web endpoint or using the RPC directly
+2) The Build management part of the framework is now checked in. Here's an example of the new Build Comparison report (here). One data point - FOIA 's build descriptions have nearly 750K pieces of distinct information. There's a lot of information in VistA about VistA.
+3) You can see the updated Schema Comparison report (here) - it bores in now on what's different between systems
+4) The first pass at a VistA meta data auditor is there. The goal with this is to check the internal consistency of a VistA's meta data. For example, does the build system's view of files match the files actually in the system? As the meta data is the basis of the comparison reports, we need to know how accurate it is in order to judge how accurate they can be.
