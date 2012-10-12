@@ -189,7 +189,7 @@ class VistaBuilds(object):
         self.__buildRPCs = {} # from build components
         limit = 1000 if self.vistaLabel == "GOLD" else VistaBuilds.__ALL_LIMIT
         for i, buildResult in enumerate(self.__fmqlCacher.describeFileEntries("9_6", limit=limit, cstop=10000)):
-            logging.info("... build result %d" % i)
+            # logging.info("... build result %d" % i)
             dr = FMQLDescribeResult(buildResult)
             self.__noSpecificValues += dr.noSpecificValues()
             name = buildResult["name"]["value"]
