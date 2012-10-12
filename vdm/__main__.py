@@ -16,7 +16,7 @@ VOLDEMORT (VDM)
 --port: port of VistA
 --access: access for FMQL RPC
 --verify: verify for FMQL RPC
--r, --report: only 'schema' for now. If report isn't specified then only caching runs.
+-r, --report: only 'schema' or 'builds' for now
 
 Example using a full FMQL RESTful endpoint ...
 $ python -m vdm -v CGVISTA -f http://vista.caregraf.org/fmqlEP -r schema
@@ -26,7 +26,6 @@ $ python -m vdm -v CGVISTA --host "xx.xx.xx" --port 9201 --access "XXX" --verify
 The first time VDM runs against a VistA, the majority of time taken is downloading meta data. Subsequent runs of VDM for that VistA will be much faster as they'll run off a cache. 
 
 Any VistA being reported on must have FMQL installed. 
-For install instructions for FMQL, see http://repository.caregraf.org/fmql/raw-file/tip/Releases/v0.9/installFMQLV0_9.html.
 
 Note: you DO NOT have to install the full, RESTful FMQL endpoint. The RPC is enough.
 """
@@ -38,6 +37,8 @@ import getopt
 import logging
 from vdm.vistaSchema import VistaSchema
 from vdm.vistaSchemaComparer import VistaSchemaComparer
+from vdm.vistaBuilds import VistaBuilds
+from vdm.vistaBuildsComparer import VistaBuildsComparer
 from vdm.copies.fmqlCacher import FMQLCacher
 import pkg_resources
 from shutil import copy
@@ -59,8 +60,20 @@ def _makeEnvir():
         # must run inside the package itself so __name__ works
         goldZipFile = pkg_resources.resource_filename(__name__, "resources/GOLD.zip")
         copy(goldZipFile, "Caches")   
-        print "Need GOLD - unziping GOLD into %s" % (os.getcwd() + "/Caches")
+        print "First time VDM is run - installing GOLD into %s" % (os.getcwd() + "/Caches")
         ZipFile(os.getcwd() + "/Caches/GOLD.zip").extractall(os.getcwd() + "/Caches")
+
+def _runReport(reportType, goldCacher, otherCacher):
+    if reportType == "schema":
+        vsr = VistaSchemaComparer(VistaSchema("GOLD", goldCacher), VistaSchema(otherCacher.vistaLabel, otherCacher))
+        reportLocation = vsr.compare()
+        print "Schema Report written to %s" % os.path.abspath(reportLocation)
+    elif reportType == "builds":
+        vbr = VistaBuildsComparer(VistaBuilds("GOLD", goldCacher), VistaBuilds(otherCacher.vistaLabel, otherCacher))
+        reportLocation = vbr.compare()
+        print "Builds Report written to %s" % os.path.abspath(reportLocation)
+    else:
+        print "No valid report type %s specified - exiting" % reportType
 
 def main():
     """
@@ -70,6 +83,7 @@ def main():
     - packaging: use setuptools - make front from windows/linux etc explicitly and don't reply on python -m 
       - merge directory handling with equivalents in vistaSchema etc. Want one environment manager.
       - http://parijatmishra.wordpress.com/2008/10/13/python-packaging-custom-scripts/
+    - cmd based interaction with VDM ... http://www.doughellmann.com/PyMOTW/cmd/
     - play with pool size to see speed of Caching
     - crude: move to argparse and a VistA directory file
     - consider opening browser if html reports: http://www.afpy.org/doc/python/2.7/library/webbrowser.html
@@ -109,23 +123,17 @@ def main():
         elif o in ["-h", "--help"]:
             print __doc__
             sys.exit()
-    print "VDM - comparing a VistA's schema against GOLD. -h for help."
+    if not report:
+        sys.exit()
     if vista == "CGVISTA":
         print "Defaulting to Caregraf's demo VistA, 'CGVISTA'"
         fmqlEP = "http://vista.caregraf.org/fmqlEP"
+    print "VDM - comparing %s against GOLD" % vista
     goldCacher = FMQLCacher("Caches")
     goldCacher.setVista("GOLD")
-    goldVistA = VistaSchema("GOLD", goldCacher)
-    ovCacher = FMQLCacher("Caches")
-    ovCacher.setVista(vista, fmqlEP=fmqlEP, host=host, port=int(port), access=access, verify=verify)
-    otherVistA = VistaSchema(vista, ovCacher)
-    vsr = VistaSchemaComparer(goldVistA, otherVistA)
-    # Cache Only means no comparison. Just cache.
-    if not report:
-        print "Complete Schema Cached"
-        sys.exit()
-    reportLocation = vsr.compare()
-    print "Schema Report written to %s" % os.path.abspath(reportLocation)
+    otherCacher = FMQLCacher("Caches")
+    otherCacher.setVista(vista, fmqlEP=fmqlEP, host=host, port=int(port), access=access, verify=verify)
+    _runReport(report, goldCacher, otherCacher)
     
 if __name__ == "__main__":
     main()

@@ -329,6 +329,7 @@ class ThreadedQueriesCacher(threading.Thread):
             jcache = open(self.__cacheLocation + "/" + query + ".json", "w")
             jcache.write(reply)
             jcache.close()
+            logging.info("Caching data from query %s" % query)
             # Monitoring progress with self.__queriesQueue.qsize():
             # - Problem with pool == 20 or so. Get 0 for last ones and then a hang.
             self.__queriesQueue.task_done()
