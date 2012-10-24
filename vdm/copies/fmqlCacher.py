@@ -128,6 +128,8 @@ class FMQLCacher:
             if float(result["number"]) < 1.1: 
                 continue # TEMP - ignore under 1.1
             queryFile = self.__cacheLocation + "/DESCRIBE TYPE " + re.sub(r'\.', '_', result["number"]) + ".json"
+            if not os.path.isfile(queryFile):
+                raise Exception("Expected Schema for %s to be in Cache but it wasn't - exiting" % result["number"])
             jreply = json.load(open(queryFile))
             if "count" in result:
                 jreply["count"] = result["count"]
@@ -144,7 +146,9 @@ class FMQLCacher:
             queryFile = self.__cacheLocation + "/DESCRIBE TYPE " + re.sub(r'\.', '_', result["number"]) + ".json"
             if not os.path.isfile(queryFile):
                 return False
-        return True        
+        return True   
+        
+    # BAD JSON FIX: have it check if in cache as may not be? Return a list?     
         
     # Elapsed Time to cache schema in 50 pieces: 136.819022894
     def __cacheSchema(self):
@@ -177,6 +181,7 @@ class FMQLCacher:
         TODO: 
         - may make iterator/generator more explicit by returning one.
           ex/ FMQLFileIterator
+        - right now, if one fails (ie/ no cache of errored json) then will exception. Perhaps try again or more elegantly exit.
         """
         if not self.__isDescribeCached(file, limit, cstop):
             self.__cacheDescribe(file, limit, cstop)
@@ -186,7 +191,7 @@ class FMQLCacher:
             loquery = FMQLCacher.DESCRIBE_TEMPL % (file, cstop, limit, offset)
             queryFile = self.__cacheLocation + "/" + loquery + ".json"
             if not os.path.isfile(queryFile):
-                raise Exception("Thought file was in Cache but it vanished - exiting")
+                raise Exception("Expected result of %s to be in Cache but it wasn't - exiting" % loquery)
             reply = json.load(open(queryFile, "r"))
             # logging.info("Reading - %s (%d results) - from cache" % (loquery, int(reply["count"])))
             for result in reply["results"]:
@@ -326,12 +331,18 @@ class ThreadedQueriesCacher(threading.Thread):
         while True:
             query = self.__queriesQueue.get()
             reply = self.__fmqlIF.query(query)
-            jcache = open(self.__cacheLocation + "/" + query + ".json", "w")
-            jcache.write(reply)
-            jcache.close()
-            logging.info("Caching data from query %s" % query)
-            # Monitoring progress with self.__queriesQueue.qsize():
-            # - Problem with pool == 20 or so. Get 0 for last ones and then a hang.
+            # Making sure no corruption - could still return a reply with "error"
+            try: 
+                jreply = json.loads(reply)
+            except:
+                logging.error("Failed to retrieve %s" % query)
+            else:
+                jcache = open(self.__cacheLocation + "/" + query + ".json", "w")
+                jcache.write(reply)
+                jcache.close()
+                logging.info("Caching data from query %s" % query)
+                # Monitoring progress with self.__queriesQueue.qsize():
+                # - Problem with pool == 20 or so. Get 0 for last ones and then a hang.
             self.__queriesQueue.task_done()
             
 class FMQLInterface(object):
@@ -386,11 +397,13 @@ def demo():
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     fcm = FMQLCacher("Caches")
     fcm.setVista("CGVISTA", "http://vista.caregraf.org/fmqlEP")
+    """
     for i, scheme in enumerate(fcm.describeSchemaTypes()):
         if "count" in scheme:
             print "%d: %s (%s)" % (i, scheme["number"], scheme["count"])
         else:
             print "%d: %s" % (i, scheme["number"])
+    """
     for entry in fcm.describeFileEntries("9_6", cstop="1000"):
         print entry["uri"]["label"]
                 
