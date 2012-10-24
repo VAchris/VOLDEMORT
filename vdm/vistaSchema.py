@@ -92,7 +92,7 @@ class VistaSchema(object):
             if field["number"] in fieldIds:
                 fields.append(field)
         return fields
-                    
+                            
     def __makeSchemas(self):
         """
         Index schema - will force caching if not already in cache
@@ -135,6 +135,7 @@ def demo():
     cacher.setVista("CGVISTA", "http://vista.caregraf.org/fmqlEP") 
     vair = VistaSchema("CGVISTA", cacher)
     print "Name of file 2: %s" % vair.getSchema("2")["name"]
+    print vair.listFiles()
                 
 if __name__ == "__main__":
     demo()

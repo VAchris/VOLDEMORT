@@ -34,7 +34,7 @@ from vistaSchema import VistaSchema
 from vdmU import HTMLREPORTHEAD, HTMLREPORTTAIL, WARNING_BLURB
 
 __all__ = ['VistaSchemaComparer']
-__version__ = ".1"
+__version__ = ".3"
 
 class VistaSchemaComparer(object):
 
@@ -85,12 +85,11 @@ class VistaSchemaComparer(object):
         otherOnlyTopFiles = self.__sortFiles(set(self.__oSchema.listFiles(True)).difference(self.__bSchema.listFiles(True)))
         allTopFiles = self.__sortFiles(set(self.__bSchema.listFiles(True)).union(self.__oSchema.listFiles(True)))
         bothTopFiles = self.__sortFiles(set(self.__bSchema.listFiles(True)).intersection(self.__oSchema.listFiles(True)))
-        
-        reportBuilder.counts(allTops=len(allTopFiles),  baseTops=self.__bSchema.countFiles(True),  baseOnlyTops=len(baseOnlyTopFiles),  basePopTops=self.__bSchema.countPopulatedTops(),  otherTops=self.__oSchema.countFiles(True), otherOnlyTops=len(otherOnlyTopFiles), otherPopTops=self.__oSchema.countPopulatedTops(), bothTops=len(bothTopFiles))
-        
-        # TODO: move counts of differences up here (not just embed in report maker)
-        
+                                
         reportBuilder.startInBoth()
+        noBNotOFields = 0
+        noONotBFields = 0
+        norenamedFields = 0
         for no, fmqlFileId in enumerate(bothTopFiles, start=1):
             fileId = re.sub(r'\_', '.', fmqlFileId)
             bsch = self.__bSchema.getSchema(fmqlFileId)
@@ -108,11 +107,14 @@ class VistaSchemaComparer(object):
                 # Just names for now but should do type etc too
                 if bcFields[i]["name"] != ocFields[i]["name"]:
                     renamedFields[ocFields[i]["number"]] = (ocFields[i]["name"], bcFields[i]["name"]) 
+                    norenamedFields += 1
             if bFieldIds != oFieldIds:
                 bNotOFieldIds = set(bFieldIds).difference(oFieldIds)
                 bNotOFields = self.__bSchema.getFields(fmqlFileId, bNotOFieldIds)
+                noBNotOFields += len(bNotOFieldIds)
                 oNotBFieldIds = set(oFieldIds).difference(bFieldIds)
                 oNotBFields = self.__oSchema.getFields(fmqlFileId, oNotBFieldIds)
+                noONotBFields += len(oNotBFieldIds)
                 reportBuilder.both(no, fileId, bsch["name"], osch["name"], bsch["location"], bCount, oCount, renamedFields, len(bFieldIds), bNotOFields, len(oFieldIds), oNotBFields)
             else:
                 reportBuilder.both(no, fileId, bsch["name"], osch["name"], bsch["location"], bCount, oCount, renamedFields)
@@ -121,6 +123,14 @@ class VistaSchemaComparer(object):
         self.__buildOneOnlyReport(reportBuilder, self.__bSchema, baseOnlyTopFiles, True)
         
         self.__buildOneOnlyReport(reportBuilder, self.__oSchema, otherOnlyTopFiles, False)
+
+        # Number of fields in a system's top files; number in files shared by both systems
+        baseCountFields = self.__countFields(self.__bSchema, self.__bSchema.listFiles(True))   
+        baseBothCountFields = self.__countFields(self.__bSchema, bothTopFiles)     
+        otherCountFields = self.__countFields(self.__oSchema, self.__oSchema.listFiles(True))
+        otherBothCountFields = self.__countFields(self.__oSchema, bothTopFiles)     
+        
+        reportBuilder.counts(allTops=len(allTopFiles),  baseTops=self.__bSchema.countFiles(True),  baseOnlyTops=len(baseOnlyTopFiles),  basePopTops=self.__bSchema.countPopulatedTops(), baseCountFields = baseCountFields, baseBothCountFields=baseBothCountFields, noBNotOFields=noBNotOFields, otherTops=self.__oSchema.countFiles(True), otherOnlyTops=len(otherOnlyTopFiles), otherPopTops=self.__oSchema.countPopulatedTops(), otherCountFields = otherCountFields, otherBothCountFields=otherBothCountFields, noONotBFields=noONotBFields, norenamedFields=norenamedFields, bothTops=len(bothTopFiles))
                                 
     def __buildOneOnlyReport(self, reportBuilder, schema, onlyTopFiles, base=True):
         reportBuilder.startOneOnly(len(onlyTopFiles), base)
@@ -133,7 +143,14 @@ class VistaSchemaComparer(object):
             else:
                 descr = ""
             reportBuilder.oneOnly(no, fileId, sch["name"], sch["location"], descr, noFields=len(schema.getFieldIds(fmqlFileId)), count=self.__safeCount(sch))
-        reportBuilder.endOneOnly()        
+        reportBuilder.endOneOnly() 
+        
+    def __countFields(self, schema, files):
+        count = 0
+        for fmqlFileId in files:
+            count += len(schema.getFieldIds(fmqlFileId))
+        return count
+
         
 class VSHTMLReportBuilder:
     """
@@ -147,11 +164,7 @@ class VSHTMLReportBuilder:
         self.__bVistaLabel = baseVistaLabel
         self.__oVistaLabel = otherVistaLabel
         self.__reportLocation = reportLocation
-                
-    def counts(self, allTops, baseTops, baseOnlyTops, basePopTops, otherTops, otherOnlyTops, otherPopTops, bothTops):
-    
-        self.__countsETCMU = "<div class='report' id='counts'><h2>Schema Counts</h2><dl><dt>Total</dt><dd>%d files</dd><dt>%s (\"Baseline\")</dt><dd>%d, %d unique, %d populated (%.1f%%)</dd><dt>%s (\"Other\")</dt><dd>%d, %d unique, %d populated (%.1f%%)</dd><dt>In Both</dt><dd>%d</dd></dl></div>" % (allTops, self.__bVistaLabel, baseTops, baseOnlyTops, basePopTops, round(((float(basePopTops)/float(baseTops)) * 100), 2), self.__oVistaLabel, otherTops, otherOnlyTops, otherPopTops, round(((float(otherPopTops)/float(otherTops)) * 100), 2), bothTops) 
-       
+                       
     def startInBoth(self):
         bothStart = "<div class='report' id='both'><h2>Differences between Files in Both</h2><p>Files common to both VistAs that have schema as opposed to content differences. Fields unique to %s (\"missing fields\") means %s has fallen behind and is missing some builds present in %s. Fields unique to %s (\"custom fields\") means it has added custom entries not found in %s. Entries labeled \"field name mismatch\" show fields with different names in each VistA. Some mismatches are superficial name variations but many represent the use of the same field for different purposes by each system." % (self.__bVistaLabel, self.__oVistaLabel, self.__bVistaLabel, self.__oVistaLabel, self.__bVistaLabel)
         self.__bothCompareItems = [bothStart]
@@ -169,7 +182,11 @@ class VSHTMLReportBuilder:
         if not (len(bNotOFields) or len(oNotBFields) or (bnameTest != onameTest)):
             return
         self.__bothCompareItems.append("<tr id='%s'><td>%d</td>" % (id, no))
-        self.__bothCompareItems.append("<td>%s</td><td>%s</td>" % (id + "<br/>" + self.__location(location), bname if bnameTest == onameTest else "<span class='titleInCol'>File Name Mismatch</span><br/>" + bname + "<br/>" + oname))
+        self.__bothCompareItems.append("<td>%s</td>" % (id + "<br/>" + self.__location(location)))
+        if bnameTest == onameTest:
+            self.__bothCompareItems.append("<td>%s</td>" % bname)
+        else:
+            self.__bothCompareItems.append("<td class='highlight'><span class='titleInCol'>File Name Mismatch</span><br/>" + bname + "<br/>" + oname + "</td>")
         if bCount == oCount:
             if bCount == "-":
                 self.__bothCompareItems.append("<td/>")
@@ -183,7 +200,10 @@ class VSHTMLReportBuilder:
             self.__bothCompareItems.append("<td><span class='titleInCol'>%s</span><br/>%s</td>" % (diffFieldBlurb, self.__muFields(bNotOFields)))
         else:
             self.__bothCompareItems.append("<td/>")
-        self.__bothCompareItems.append("<td>")
+        if not (len(oNotBFields) or len(renamedFields.keys())):
+            self.__bothCompareItems.append("<td/></tr>")   
+            return 
+        self.__bothCompareItems.append("<td class='highlight'>")
         if len(oNotBFields):
             diffFieldBlurb = "Other has %d unique fields out of %d" % (len(oNotBFields), noOFields)
             self.__bothCompareItems.append("<span class='titleInCol'>%s</span><br/>%s" % (diffFieldBlurb, self.__muFields(oNotBFields)))
@@ -214,7 +234,7 @@ class VSHTMLReportBuilder:
         
     def startOneOnly(self, uniqueCount, base=True):
         BASEBLURB = "%d files are unique to %s. Along with missing fields, these files indicate baseline builds missing from %s. The Build reports cover builds in more detail." % (uniqueCount, self.__bVistaLabel, self.__oVistaLabel)
-        OTHERBLURB = "%d files are unique to %s. Along with custom fields added to common files, these indicate the extent of custom functionality in this VistA." % (uniqueCount, self.__oVistaLabel)
+        OTHERBLURB = "%d files are unique to %s. Along with custom fields added to common files, these indicate the extent of custom functionality in this VistA. Descriptions should help distinguish between files once released centrally by the VA - 'Property of the US Government ...' - and files local to the VistA being compared." % (uniqueCount, self.__oVistaLabel)
         self.__oneOnlyIsBase = base
         oneOnlyStart = "<div class='report' id='%s'><h2>Files only in %s </h2><p>%s</p>" % ("baseOnly" if base else "otherOnly", self.__bVistaLabel if base else self.__oVistaLabel, BASEBLURB if base else OTHERBLURB)
         self.__oneOnlyItems = [oneOnlyStart]
@@ -236,13 +256,17 @@ class VSHTMLReportBuilder:
     def __location(self, location):
         locationPieces = location.split("(")
         return "<span class='marray'>%s</span>%s" % (locationPieces[0], "(" + locationPieces[1] if locationPieces[1] else "")
+        
+    def counts(self, allTops, baseTops, baseOnlyTops, basePopTops, baseCountFields, baseBothCountFields, noBNotOFields, otherTops, otherOnlyTops, otherPopTops, otherCountFields, otherBothCountFields, noONotBFields, norenamedFields, bothTops):
+    
+        self.__countsETCMU = "<div class='report' id='counts'><h2>Schema Counts</h2><dl><dt>Total</dt><dd>%d files</dd><dt>%s (\"Baseline\")</dt><dd>%d files, %d unique, %d populated (%.1f%%)<br/>%d fields, %d in shared files, %d unique</dd><dt>%s (\"Other\")</dt><dd>%d files, <span class='highlight'>%d unique (%.1f%%)</span>, %d populated (%.1f%%)<br/>%d fields, %d in shared files, %d unique, %d repurposed, <span class='highlight'>%d custom (%.1f%%)</span></dd><dt>In Both</dt><dd>%d files</dd></dl></div>" % (allTops, self.__bVistaLabel, baseTops, baseOnlyTops, basePopTops, round(((float(basePopTops)/float(baseTops)) * 100), 2), baseCountFields, baseBothCountFields, noBNotOFields, self.__oVistaLabel, otherTops, otherOnlyTops, round(((float(otherOnlyTops)/float(otherTops)) * 100), 2), otherPopTops, round(((float(otherPopTops)/float(otherTops)) * 100), 2), otherCountFields, otherBothCountFields, noONotBFields, norenamedFields, noONotBFields + norenamedFields, round(((float(noONotBFields + norenamedFields)/float(otherBothCountFields)) * 100), 2), bothTops) 
                                 
     def flush(self):
     
         reportHead = (HTMLREPORTHEAD % ("Schema Comparison Report << VOLDEMORT", " VOLDEMORT Schema Comparison Report"))
-        blurb = "<p>Compare two VistA versions, %s ('Other') against %s ('Baseline'). This report shows which files and fields are shared and which are exclusive to one or other VistA. For each file, the report also gives a count of its entries as reported by its FileMan.</p>" % (self.__oVistaLabel, self.__bVistaLabel)
+        blurb = "<p>Compare two VistA versions, %s ('Other') against %s ('Baseline'). This report shows which files and fields are shared and which are exclusive to one or other VistA. For each file, the report also gives a count of its entries as reported by its FileMan. The most relevant information is highlighted in grey.</p>" % (self.__oVistaLabel, self.__bVistaLabel)
         warning = "<p><strong>Warning:</strong> %s</p>" % WARNING_BLURB if WARNING_BLURB else ""
-        nav = "<p>Jump to: <a href='#counts'>Counts</a> | <a href='#both'>In Both</a> | <a href='#%s'>%s Only</a> | <a href='#%s'>%s Only</a></p>" % ("otherOnly", self.__oVistaLabel, "baseOnly", self.__bVistaLabel)
+        nav = "<p>Jump to: <a href='#counts'>Counts</a> | <a href='#both' class='highlight'>In Both</a> | <a href='#%s' class='highlight'>%s Only</a> | <a href='#%s'>%s Only</a></p>" % ("otherOnly", self.__oVistaLabel, "baseOnly", self.__bVistaLabel)
         reportTail = HTMLREPORTTAIL % datetime.now().strftime("%b %d %Y %I:%M%p")
         
         reportItems = [reportHead, blurb, warning, nav, self.__countsETCMU]
