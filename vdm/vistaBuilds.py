@@ -27,8 +27,7 @@ class VistaBuilds(object):
     Lynchpin for most VistA System data reporting.
     
     TODO:
-    - bring 9.7 install in here too ie/ Builds and Installs.
-      - date stamps from that
+    - test install for files now in here ...
       - important: ex/ files like 19620.1 showing up in listFiles due to COMPARE DSIR 5.2
       which though loaded was never installed
     - build name order: see sort use in compare. 
@@ -36,6 +35,7 @@ class VistaBuilds(object):
       - "package name or prefix"  
       - will use (uri, label) form from Cache update
     - use Cacher filters like "yes/no" -> true/false, default values etc. ie. sparce hard to record on   
+    - defaults in Comparer ... better done in here
     - handle cnodes generically ie/ if there properly then deref file by name into the desired label for an index. Make the indexes into one dictionary ie/ self.__indexes
     - consider link into (static) release notes
     - current version grabs everything about every build into a Cache. Instead
@@ -57,10 +57,13 @@ class VistaBuilds(object):
         """
         return self.__noSpecificValues
                                           
-    def listBuilds(self):
+    def listBuilds(self, installedOnly=True):
         """
-        Returns list of build names in Build file order
+        Returns list of build names in Build file order if all builds requested and
+        in active/installed order if ask for 'installedOnly'
         """
+        if installedOnly:
+            return list(self.__buildAboutsInstalled)
         return list(self.__buildAbouts)
         
     def describeBuild(self, buildName):
@@ -76,7 +79,7 @@ class VistaBuilds(object):
         """
         return self.__buildAbouts[buildName]
                                 
-    def getFiles(self):
+    def getFiles(self, installedOnly=True):
         """
         All files created/updated in the build system with list of builds effecting them
                 
@@ -84,6 +87,8 @@ class VistaBuilds(object):
         """
         fls = defaultdict(list)
         for buildName, buildFiles in self.__buildFiles.items():
+            if installedOnly and buildName not in self.__buildAboutsInstalled:
+                continue
             for buildFile in buildFiles:
                 # TODO: remove once FOIA GOLD has this stuff (will go from Cache too)
                 if float(buildFile["vse:file_id"]) < 1.1:
@@ -200,6 +205,7 @@ class VistaBuilds(object):
                 continue
             self.__buildAbouts[name] = dr.cstopped(flatten=True)
             self.__buildAbouts[name]["vse:ien"] = buildResult["uri"]["value"].split("-")[1]
+            self.__buildAbouts[name]["vse:status"] = "NEVER_INSTALLED" # overridden below
             if "file" in dr.cnodeFields():
                 # catch missing 'file'. TBD: do verify version?
                 self.__buildFiles[name] = [cnode for cnode in dr.cnodes("file") if "file" in cnode]
@@ -225,7 +231,49 @@ class VistaBuilds(object):
                         self.__buildRoutines[name] = bc["entries"]
                     continue
         logging.info("%s: Indexing, cleaning (with caching) %d builds took %s" % (self.vistaLabel, len(self.__buildAbouts), datetime.now()-start))
-                
+        self.__installAbouts = OrderedDict()
+        noInstalls = 0
+        for i, installResult in enumerate(self.__fmqlCacher.describeFileEntries("9_7", limit=limit, cstop=0)):
+            # WV has entries with no status: usually there is a follow on with data 
+            if "status" not in installResult:
+                logging.error("No 'status' in install %s" % installResult["uri"]["value"])
+                continue
+            ir = FMQLDescribeResult(installResult)
+            self.__noSpecificValues += ir.noSpecificValues()            
+            name = installResult["name"]["value"]
+            # Don't show FMQL itself
+            if re.match(r'CGFMQL', name):
+                continue
+            if name not in self.__installAbouts:
+                self.__installAbouts[name] = []
+            self.__installAbouts[name].append(ir.cstopped(flatten=True)) 
+            noInstalls += 1
+            
+        # Finally let's go through these installs (in order), all have status
+        # and note various aspects of the build like if still installed, last install
+        # time etc.
+        self.__buildAboutsInstalled = OrderedDict()
+        for name, installInfos in self.__installAbouts.items():
+            if name not in self.__buildAbouts:
+                continue # TODO: look at this: FOIA GECS*2.0*10 (corrupt FOIA?)
+            for installInfo in installInfos:
+                if installInfo["status"] == "Install Completed":
+                    self.__buildAbouts[name]["vse:last_install_effect"] = installInfo["install_complete_time"]
+                    self.__buildAbouts[name]["vse:status"] = "INSTALLED"
+                    if name in self.__buildAboutsInstalled:
+                        del self.__buildAboutsInstalled[name]
+                    self.__buildAboutsInstalled[name] = self.__buildAbouts[name]
+                elif installInfo["status"] == "De-Installed":
+                    self.__buildAbouts[name]["vse:last_install_effect"] = installInfo["install_complete_time"]
+                    self.__buildAbouts[name]["vse:status"] = "DE_INSTALLED"
+                    # Should always be but just in case
+                    if name in self.__buildAboutsInstalled: 
+                        del self.__buildAboutsInstalled[name]
+                    else:
+                        logging.error("De-installing an uninstalled build: %s" % installInfo["uri"])
+
+        logging.info("%s: Indexing, cleaning (with caching) %d builds, %d installs took %s" % (self.vistaLabel, len(self.__buildAbouts), noInstalls, datetime.now()-start))    
+                        
 # ######################## Module Demo ##########################
                        
 def demo():
@@ -244,6 +292,8 @@ def demo():
     cacher.setVista("CGVISTA", fmqlEP="http://vista.caregraf.org/fmqlEP")
     cgbs = VistaBuilds("CGVISTA", cacher)
     buildNames = cgbs.listBuilds()
+    print len(buildNames)
+    print len(cgbs.listBuilds(False))
     print "First build is: %s" % buildNames[0]
     print cgbs.describeBuild(buildNames[0])
     print cgbs.describeBuildFiles(buildNames[0])

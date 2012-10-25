@@ -67,8 +67,9 @@ class VistaBuildsComparer(object):
     def __buildReport(self, reportBuilder):
     
         # TODO: is this in lex order and then is BPS*1.0*10 before BPS*1.0*2
-        baseBuilds = self.__bBuilds.listBuilds()
-        otherBuilds = self.__oBuilds.listBuilds()
+        # Note: in install order - will only get all for counts
+        baseBuilds = self.__bBuilds.listBuilds(True)
+        otherBuilds = self.__oBuilds.listBuilds(True)
         allBuilds = sorted(set(baseBuilds).union(otherBuilds))
         baseOnlyBuilds = sorted(set(baseBuilds).difference(otherBuilds))
         otherOnlyBuilds = sorted(set(otherBuilds).difference(baseBuilds))
@@ -78,19 +79,24 @@ class VistaBuildsComparer(object):
         reportBuilder.counts(total=len(allBuilds), common=len(commonBuilds), baseTotal=len(baseBuilds), baseOnly=len(baseOnlyBuilds), otherTotal=len(otherBuilds), otherOnly=len(otherOnlyBuilds))
         
         reportBuilder.valuesCounts(self.__bBuilds.getNoSpecificValues(), self.__oBuilds.getNoSpecificValues())
-        
-        # TODO: base on install. Move into builds ie/ a one shot () date ranges
-        reportBuilder.dateRanges(self.__bBuilds.describeBuild(baseBuilds[0])["date_distributed"], self.__bBuilds.describeBuild(baseBuilds[-1])["date_distributed"], self.__oBuilds.describeBuild(otherBuilds[0])["date_distributed"], self.__oBuilds.describeBuild(otherBuilds[-1])["date_distributed"])
+        reportBuilder.dateRanges(
+        self.__bBuilds.describeBuild(baseBuilds[0])["vse:last_install_effect"], 
+        self.__bBuilds.describeBuild(baseBuilds[-1])["vse:last_install_effect"], 
+        self.__oBuilds.describeBuild(otherBuilds[0])["vse:last_install_effect"], 
+        self.__oBuilds.describeBuild(otherBuilds[-1])["vse:last_install_effect"])
         
         self.__buildOneOnlyReport(reportBuilder, self.__bBuilds, baseOnlyBuilds, True)
         self.__buildOneOnlyReport(reportBuilder, self.__oBuilds, otherOnlyBuilds, False)
         
     def __buildOneOnlyReport(self, reportBuilder, builds, buildsNamesToShow, base=True):
         reportBuilder.startOneOnly(len(buildsNamesToShow), base)
-        for no, buildName in enumerate(buildsNamesToShow, start=1):
+        # Want builds in install order
+        for no, buildName in enumerate(builds.listBuilds(True), start=1):
+            if buildName not in buildsNamesToShow:
+                continue # ie/ too many
             buildAbout = builds.describeBuild(buildName)
             frgrm = (len(builds.describeBuildFiles(buildName)), len(builds.describeBuildRoutines(buildName)), len(builds.describeBuildGlobals(buildName)), len(builds.describeBuildRPCs(buildName)), len(builds.describeBuildMultiples(buildName)))
-            reportBuilder.oneOnly(no, buildName, buildAbout["date_distributed"] if "date_distributed" in buildAbout else "", "", "NATIONAL" if "track_package_nationally" in buildAbout and buildAbout["track_package_nationally"] == "YES" else "LOCAL", buildAbout["type"] if "type" in buildAbout else "", buildAbout["description_of_enhancements"] if "description_of_enhancements" in buildAbout else "", frgrm)
+            reportBuilder.oneOnly(no, buildName, buildAbout["date_distributed"] if "date_distributed" in buildAbout else "", buildAbout["vse:last_install_effect"], "NATIONAL" if "track_package_nationally" in buildAbout and buildAbout["track_package_nationally"] == "YES" else "LOCAL", buildAbout["type"] if "type" in buildAbout else "", buildAbout["description_of_enhancements"] if "description_of_enhancements" in buildAbout else "", frgrm)
         reportBuilder.endOneOnly()        
         
 class VBHTMLReportBuilder:
@@ -119,7 +125,7 @@ class VBHTMLReportBuilder:
         oneOnlyStart = "<div class='report' id='%s'><h2>Builds only in %s </h2><p>%s</p>" % ("baseOnly" if base else "otherOnly", self.__bVistaLabel if base else self.__oVistaLabel, BASEBLURB if base else OTHERBLURB)
         self.__oneOnlyItems = [oneOnlyStart]
         # TODO: add in package once there
-        tblStartOne = "<table><tr><th>#</th><th>Name</th><th>Released</th><th>Installed</th><th>Scope/Type<br/># files/routines/globals/rpcs/multiples</th><th>Description</th></tr>"
+        tblStartOne = "<table><tr><th>#</th><th>Name</th><th>Released</th><th>Last Installed</th><th>Scope/Type<br/># files/routines/globals/rpcs/multiples</th><th>Description</th></tr>"
         self.__oneOnlyItems.append(tblStartOne)
         
     def oneOnly(self, no, name, released, installed, scope, type, description, frgrm):
