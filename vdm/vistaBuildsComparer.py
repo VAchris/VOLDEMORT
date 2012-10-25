@@ -66,17 +66,21 @@ class VistaBuildsComparer(object):
         
     def __buildReport(self, reportBuilder):
     
-        # TODO: is this in lex order and then is BPS*1.0*10 before BPS*1.0*2
-        # Note: in install order - will only get all for counts
+        # Focus is on installed builds. Just get one count of all for context
+        # ie/ common == common installed
         baseBuilds = self.__bBuilds.listBuilds(True)
+        allBaseBuilds = self.__bBuilds.listBuilds(False)
         otherBuilds = self.__oBuilds.listBuilds(True)
-        allBuilds = sorted(set(baseBuilds).union(otherBuilds))
-        baseOnlyBuilds = sorted(set(baseBuilds).difference(otherBuilds))
-        otherOnlyBuilds = sorted(set(otherBuilds).difference(baseBuilds))
-        commonBuilds = sorted(set(baseBuilds).intersection(otherBuilds))
+        allOtherBuilds = self.__oBuilds.listBuilds(False)
+
+        allBuilds = set(allBaseBuilds).union(allOtherBuilds)
+        allInstalledBuilds = set(baseBuilds).union(otherBuilds)
+        baseOnlyBuilds = set(baseBuilds).difference(otherBuilds)
+        otherOnlyBuilds = set(otherBuilds).difference(baseBuilds)
+        commonBuilds = set(baseBuilds).intersection(otherBuilds)
                 
         # With this can calculate total, baseOnly, otherOnly, both (total - baseOnly + otherOnly), oneOnly (baseOnly + otherOnly); baseMultis = base
-        reportBuilder.counts(total=len(allBuilds), common=len(commonBuilds), baseTotal=len(baseBuilds), baseOnly=len(baseOnlyBuilds), otherTotal=len(otherBuilds), otherOnly=len(otherOnlyBuilds))
+        reportBuilder.counts(total=len(allBuilds), installed=len(allInstalledBuilds), common=len(commonBuilds), baseTotal=len(baseBuilds), baseOnly=len(baseOnlyBuilds), otherTotal=len(otherBuilds), otherOnly=len(otherOnlyBuilds))
         
         reportBuilder.valuesCounts(self.__bBuilds.getNoSpecificValues(), self.__oBuilds.getNoSpecificValues())
         reportBuilder.dateRanges(
@@ -107,9 +111,9 @@ class VBHTMLReportBuilder:
         self.__oVistaLabel = otherVistaLabel
         self.__reportLocation = reportLocation
                 
-    def counts(self, total, common, baseTotal, baseOnly, otherTotal, otherOnly):
+    def counts(self, total, installed, common, baseTotal, baseOnly, otherTotal, otherOnly):
     
-        self.__countsETCMU = "<div class='report' id='counts'><h2>Build Counts</h2><dl><dt>Total/Common</dt><dd>%d/%d</dd><dt>%s Total/Unique</dt><dd>%d/%d</dd><dt>%s Total/Unique</dt><dd>%d/%d</dd>" % (total, common, self.__bVistaLabel, baseTotal, baseOnly, self.__oVistaLabel, otherTotal, otherOnly) 
+        self.__countsETCMU = "<div class='report' id='counts'><h2>Build Counts</h2><dl><dt>Total/Installed/Common</dt><dd>%d/%d/%d</dd><dt>%s Installed/Unique</dt><dd>%d/%d</dd><dt>%s Installed/Unique</dt><dd>%d/<span class='highlight'>%d</span></dd>" % (total, installed, common, self.__bVistaLabel, baseTotal, baseOnly, self.__oVistaLabel, otherTotal, otherOnly) 
         
     def valuesCounts(self, baseValuesCount, otherValuesCount):
         self.__countsETCMU += "<dt>Datapoints - Base/Other</dt><dd>%d/%d</dd>" % (baseValuesCount, otherValuesCount)
@@ -125,7 +129,7 @@ class VBHTMLReportBuilder:
         oneOnlyStart = "<div class='report' id='%s'><h2>Builds only in %s </h2><p>%s</p>" % ("baseOnly" if base else "otherOnly", self.__bVistaLabel if base else self.__oVistaLabel, BASEBLURB if base else OTHERBLURB)
         self.__oneOnlyItems = [oneOnlyStart]
         # TODO: add in package once there
-        tblStartOne = "<table><tr><th>#</th><th>Name</th><th>Released</th><th>Last Installed</th><th>Scope/Type<br/># files/routines/globals/rpcs/multiples</th><th>Description</th></tr>"
+        tblStartOne = "<table><tr><th>Install #</th><th>Name</th><th>Released/<br/>Last Installed </th><th>Scope<br/>Type<br/>files/routines/globals/rpcs/multiples</th><th>Description</th></tr>"
         self.__oneOnlyItems.append(tblStartOne)
         
     def oneOnly(self, no, name, released, installed, scope, type, description, frgrm):
@@ -134,8 +138,8 @@ class VBHTMLReportBuilder:
         """
         self.__oneOnlyItems.append("<tr id='%s'><td>%d</td>" % (name, no))
         self.__oneOnlyItems.append("<td>%s</td>" % (name))
-        self.__oneOnlyItems.append("<td>%s</td><td>%s</td>" % (released, installed))
-        self.__oneOnlyItems.append("<td>%s/%s<br/>%s/%s/%s/%s/%s</td>" % (scope, type, frgrm[0], frgrm[1], frgrm[2], frgrm[3], frgrm[4]))
+        self.__oneOnlyItems.append("<td>%s<br/>%s</td>" % (released.split("T")[0], installed.split("T")[0]))
+        self.__oneOnlyItems.append("<td>%s<br/>%s<br/>%s/%s/%s/%s/%s</td>" % (scope, type, frgrm[0], frgrm[1], frgrm[2], frgrm[3], frgrm[4]))
         # Long lines cause wrap problems
         description = cgi.escape(re.sub(r'\=\=\=\=\=\=+', '=====', description[0:1000]))
         self.__oneOnlyItems.append("<td>%s</td></tr>" % description)
