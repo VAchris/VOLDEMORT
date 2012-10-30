@@ -11,7 +11,8 @@ Module for retrieving, caching and analysing a VistA's schemas returned by FMQL
 TODO - Changes/Additions Planned:
 - any FMQLisms in Schema returned move in here
   - ie/ . not _ to match Builds file ids
-- leverage Packages.csv (https://raw.github.com/OSEHR/VistA-FOIA/master/Packages.csv)
+- leverage Packages (static: https://raw.github.com/OSEHR/VistA-FOIA/master/Packages.csv or 9_4) and Station Numbers (file 4).
+  - station number to field name for class 3: New fields within the VA should be given field numbers in the format of NNNXXX, where NNN is the 3-digit VA station identifier and XXX is a three-digit sequence number, usually 001 and going up from there for a given file.  New nodes should be added as nodes NNNXXX, same format, not in the low numerics, not in the alpha series of nodes". Ex/ acceptance (460001) ... ess people (776000) ... lblk1 choices (500003) ... or even collect (580950.1) 
 """
 
 import os
@@ -77,6 +78,11 @@ class VistaSchema(object):
         
     def getSchema(self, file):
         return self.__schemas[file]
+        
+    def getFileName(self, file):
+        if file not in self.__schemas:
+            return "<INVALID FILE>"
+        return self.__schemas[file]["name"]
                             
     def getFieldIds(self, file):
         sch = self.getSchema(file)
@@ -92,6 +98,13 @@ class VistaSchema(object):
             if field["number"] in fieldIds:
                 fields.append(field)
         return fields
+        
+    def sortFiles(self, fileSet):
+        """TODO: remove once move ids properly in here"""
+        return sorted(fileSet, key=lambda item: float(re.sub(r'\_', ".", item)))
+        
+    def dotFiles(self, fileSet):
+        return [float(re.sub(r'\_', ".", item)) for item in fileSet]
                             
     def __makeSchemas(self):
         """
@@ -101,11 +114,11 @@ class VistaSchema(object):
         schemas = {}
         start = datetime.now()
         for i, dtResult in enumerate(self.__fmqlCacher.describeSchemaTypes()):
+            if "error" in dtResult:
+                self.badSelectTypes.append(dtResult["error"])
+                continue
             fileId = dtResult["number"]
             fmqlFileId = re.sub(r'\.', '_', fileId)
-            if "error" in dtResult:
-                self.badSelectTypes.append(fileId)
-                continue
             schemas[fmqlFileId] = dtResult
         logging.info("%s: ... building (with caching) took %s" % (self.vistaLabel, datetime.now()-start))
         self.__schemas = schemas

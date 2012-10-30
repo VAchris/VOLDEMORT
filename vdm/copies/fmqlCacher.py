@@ -201,19 +201,25 @@ class FMQLCacher:
             offset += limit
                     
     def __isDescribeCached(self, file, limit, cstop):
+        """TODO: good for all but boundary condition where last reply has limit entries and then there's no new reply. Need to record properly in serialized reply"""
         offset = 0
+        queryFile = ""
         while True:
             loquery = FMQLCacher.DESCRIBE_TEMPL % (file, cstop, limit, offset)
+            lastQueryFile = queryFile
             queryFile = self.__cacheLocation + "/" + loquery + ".json"
             if not os.path.isfile(queryFile):
-                return False
-            reply = json.load(open(queryFile, "r"))
-            if int(reply["count"]) != limit:
+                if not lastQueryFile:
+                    return False
+                reply = json.load(open(lastQueryFile, "r"))
+                if int(reply["count"]) != limit:
+                    return True
                 break
             offset += limit
-        return True
+        return False
             
     def __cacheDescribe(self, file, limit, cstop):
+        """Assumes all or nothing ie/ missing even one, will get all again"""
         start = time.time()
         # Never cache COUNT. Go direct.
         reply = self.__fmqlIF.query("COUNT " + file)

@@ -22,7 +22,7 @@ from vistaBuilds import VistaBuilds
 from vdmU import HTMLREPORTHEAD, HTMLREPORTTAIL, WARNING_BLURB
 
 __all__ = ['VistaBuildsComparer']
-__version__ = ".2"
+__version__ = ".3"
 
 class VistaBuildsComparer(object):
 
@@ -30,6 +30,7 @@ class VistaBuildsComparer(object):
     A class to produce a report the compares a VistA against a baseline VistA.
     
     TODO: 
+    - subclass VistaReporter which can define reportsLocation etc.
     - dynamic chart example ie/ not HTML but a simple "demo" of number of builds
     installed. 
     """

@@ -16,7 +16,7 @@ VOLDEMORT (VDM)
 --port: port of VistA
 --access: access for FMQL RPC
 --verify: verify for FMQL RPC
--r, --report: only 'schema' or 'builds' for now
+-r, --report: 'schema', 'builds', 'schemaBuilds'
 
 Example using a full FMQL RESTful endpoint ...
 $ python -m vdm -v CGVISTA -f http://vista.caregraf.org/fmqlEP -r schema
@@ -39,6 +39,7 @@ from vdm.vistaSchema import VistaSchema
 from vdm.vistaSchemaComparer import VistaSchemaComparer
 from vdm.vistaBuilds import VistaBuilds
 from vdm.vistaBuildsComparer import VistaBuildsComparer
+from vdm.vistaOtherDiffer import VistaOtherDiffer
 from vdm.copies.fmqlCacher import FMQLCacher
 import pkg_resources
 from shutil import copy
@@ -72,6 +73,10 @@ def _runReport(reportType, goldCacher, otherCacher):
         vbr = VistaBuildsComparer(VistaBuilds("GOLD", goldCacher), VistaBuilds(otherCacher.vistaLabel, otherCacher))
         reportLocation = vbr.compare()
         print "Builds Report written to %s" % os.path.abspath(reportLocation)
+    elif reportType == "schemaBuilds":
+        vod = VistaOtherDiffer(VistaBuilds("GOLD", goldCacher), VistaBuilds(otherCacher.vistaLabel, otherCacher), VistaSchema("GOLD", goldCacher), VistaSchema(otherCacher.vistaLabel, otherCacher))
+        reportLocation = vod.report()
+        print "Schema Builds Report written to %s" % os.path.abspath(reportLocation)        
     else:
         print "No valid report type %s specified - exiting" % reportType
 

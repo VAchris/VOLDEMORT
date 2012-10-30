@@ -30,10 +30,11 @@ class VistaBuilds(object):
     - test install for files now in here ...
       - important: ex/ files like 19620.1 showing up in listFiles due to COMPARE DSIR 5.2
       which though loaded was never installed
-    - build name order: see sort use in compare. 
+    - consider pass in names NOT to load/index ie/ if in Base, why reload from remote system. ie/ depth not needed if date distrib equal.
     - pkg tagger (list of regexps - [(r'xx', PKGNAME)] ie build pkg tagger
       - "package name or prefix"  
       - will use (uri, label) form from Cache update
+      - tie into Stations and Conventions for naming Class 3 builds
     - use Cacher filters like "yes/no" -> true/false, default values etc. ie. sparce hard to record on   
     - defaults in Comparer ... better done in here
     - handle cnodes generically ie/ if there properly then deref file by name into the desired label for an index. Make the indexes into one dictionary ie/ self.__indexes
@@ -258,13 +259,17 @@ class VistaBuilds(object):
                 continue # TODO: look at this: FOIA GECS*2.0*10 (corrupt FOIA?)
             for installInfo in installInfos:
                 if installInfo["status"] == "Install Completed":
-                    self.__buildAbouts[name]["vse:last_install_effect"] = installInfo["install_complete_time"]
+                    try:
+                        self.__buildAbouts[name]["vse:last_install_effect"] = installInfo["install_complete_time"]
+                    except: # TODO: check this further - 0LR*5.2*156 in VAVISTA
+                        self.__buildAbouts[name]["vse:last_install_effect"] = installInfo["install_start_time"]
                     self.__buildAbouts[name]["vse:status"] = "INSTALLED"
                     if name in self.__buildAboutsInstalled:
                         del self.__buildAboutsInstalled[name]
                     self.__buildAboutsInstalled[name] = self.__buildAbouts[name]
                 elif installInfo["status"] == "De-Installed":
-                    self.__buildAbouts[name]["vse:last_install_effect"] = installInfo["install_complete_time"]
+                    # TODO: no obvious field for this.
+                    self.__buildAbouts[name]["vse:last_install_effect"] = ""
                     self.__buildAbouts[name]["vse:status"] = "DE_INSTALLED"
                     # Should always be but just in case
                     if name in self.__buildAboutsInstalled: 

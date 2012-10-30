@@ -94,9 +94,15 @@ class VistaSchemaComparer(object):
         for no, fmqlFileId in enumerate(bothFiles, start=1):
             fileId = re.sub(r'\_', '.', fmqlFileId)
             bsch = self.__bSchema.getSchema(fmqlFileId)
+            osch = self.__oSchema.getSchema(fmqlFileId)
+            loc = bsch["location"] if "location" in bsch else ""
+            parent = bsch["parent"] if "parent" in bsch else ""
+            # Labs are special - don't count for now. Will change later.
+            if re.match(r'63', fileId):
+                reportBuilder.both(no, fileId, bsch["name"], osch["name"], loc, parent, 0, 0, {})
+                continue
             bFieldIds = self.__bSchema.getFieldIds(fmqlFileId)
             bCount = self.__safeCount(bsch)
-            osch = self.__oSchema.getSchema(fmqlFileId)
             oFieldIds = self.__oSchema.getFieldIds(fmqlFileId)
             oCount = self.__safeCount(osch)
             # Special: may only apply to RPMS but perhaps others also rename or define fields ie/ the same field is used in different ways in each VistA.
@@ -109,8 +115,6 @@ class VistaSchemaComparer(object):
                 if bcFields[i]["name"] != ocFields[i]["name"]:
                     renamedFields[ocFields[i]["number"]] = (ocFields[i]["name"], bcFields[i]["name"]) 
                     counts["norenamedFields"] += 1
-            loc = bsch["location"] if "location" in bsch else ""
-            parent = bsch["parent"] if "parent" in bsch else ""
             if bFieldIds != oFieldIds:
                 bNotOFieldIds = set(bFieldIds).difference(oFieldIds)
                 bNotOFields = self.__bSchema.getFields(fmqlFileId, bNotOFieldIds)
@@ -185,7 +189,7 @@ class VSHTMLReportBuilder:
         self.__parents = {}
                        
     def startInBoth(self):
-        bothStart = "<div class='report' id='both'><h2>Differences between Files in Both</h2><p>Files common to both VistAs that have schema as opposed to content differences. Fields unique to %s (\"missing fields\") means %s has fallen behind and is missing some builds present in %s. Fields unique to %s (\"custom fields\") means it has added custom entries not found in %s. Entries labeled \"field name mismatch\" show fields with different names in each VistA. Some mismatches are superficial name variations but many represent the use of the same field for different purposes by each system." % (self.__bVistaLabel, self.__oVistaLabel, self.__bVistaLabel, self.__oVistaLabel, self.__bVistaLabel)
+        bothStart = "<div class='report' id='both'><h2>Differences between Files in Both</h2><p>Files common to both VistAs that have schema as opposed to content differences. Fields unique to %s (\"missing fields\") means %s has fallen behind and is missing some builds present in %s. Fields unique to %s (\"custom fields\") means it has added custom entries not found in %s. Entries labeled \"field name mismatch\" show fields with different names in each VistA. Some mismatches are superficial name variations but many represent the use of the same field for different purposes by each system. Note that this list <span class='highlight'>does not highlight differences in Lab files</span> - local sites customize these extensively. There needs to be a separate 'lab differences' report." % (self.__bVistaLabel, self.__oVistaLabel, self.__bVistaLabel, self.__oVistaLabel, self.__bVistaLabel)
         self.__bothCompareItems = [bothStart]
         tblStartCompare = "<table><tr><th>Both #</th><th>Name/ID/Locn</th><th># Entries</th><th>Fields Missing</th><th>Custom Fields</th></tr>"
         self.__bothCompareItems.append(tblStartCompare)
@@ -220,8 +224,8 @@ class VSHTMLReportBuilder:
         else:
             self.__bothCompareItems.append("<td>%s<br/>%s</td>" % (bCount, oCount))
 
-        if id == "63.04":
-            self.__bothCompareItems.append("<td colspan='2'>IGNORING - 63.04 always different</td></tr>")
+        if re.match(r'63', id):
+            self.__bothCompareItems.append("<td colspan='2'>IGNORING - Lab files always different</td></tr>")
             return
 
         if len(bNotOFields):
@@ -253,7 +257,9 @@ class VSHTMLReportBuilder:
         for field in fields:
             if muFields:
                 muFields += ", "
-            muFields += self.__niceFieldName(field["name"]) + " (%s)" % field["number"]
+            # TODO: improve this - highlighting station number - field #, 6 digit fields
+            fieldNumberMU = field["number"] if not re.match(r'\d{6}', field["number"]) else "<strong>" + field["number"] + "</strong>"
+            muFields += self.__niceFieldName(field["name"]) + " (%s)" % fieldNumberMU
         return muFields
         
     def __niceFieldName(self, fieldName):
@@ -337,6 +343,8 @@ class VSHTMLReportBuilder:
 class VSFormattedTextReportBuilder:
     """
     See: http://www.afpy.org/doc/python/2.7/library/textwrap.html
+    
+    Also: %*s and max(len(w) for w in x) ie. set width to fit biggest
     """
     def __init__(self):
         pass
@@ -373,8 +381,8 @@ def demo():
     gCacher = FMQLCacher("Caches")
     gCacher.setVista("GOLD")
     oCacher = FMQLCacher("Caches")
-    oCacher.setVista("CGVISTA", "http://vista.caregraf.org/fmqlEP")
-    vsr = VistaSchemaComparer(VistaSchema("GOLD", gCacher), VistaSchema("CGVISTA", oCacher))
+    oCacher.setVista("RPMS", "http://vista.caregraf.org/fmqlEP")
+    vsr = VistaSchemaComparer(VistaSchema("GOLD", gCacher), VistaSchema("RPMS", oCacher))
     reportLocation = vsr.compare(format="HTML")
     print "Report written to %s" % reportLocation
         

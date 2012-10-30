@@ -10,9 +10,7 @@
 # Still need to go through and recheck:
 # - why 9000010.07 not in Build: prob cause name change was by GOLD and not OTHER! ie/ old
 # - 29320.2 ... Chase bug here ... why not in some OTHER build ie/ somewhere. Go through full other list ***
-# - audit 1.1. has two unique fields (deleted by GOLD) or should be in other somewhere ... search. 
-#
-#
+# - audit 1.1. has two unique fields (deleted by GOLD) or should be in other somewhere ... search.
 
 """
 VOLDEMORT Other VistA Differ
@@ -31,7 +29,7 @@ from vistaBuilds import VistaBuilds
 from vistaSchema import VistaSchema
 from vdmU import HTMLREPORTHEAD, HTMLREPORTTAIL, WARNING_BLURB
 
-__all__ = ['', 'VistaOtherDiffer']
+__all__ = ['VistaOtherDiffer']
 __version__ = ".3"
 
 class VistaOtherDiffer:
@@ -186,7 +184,7 @@ class VODHTMLReportBuilder:
         self.__bothItems.append("</table></div>")                                       
 
     def startInSchemaOnly(self, countFiles):
-        self.__inSchemaOnlyItems = ["<div class='report' id='inSchemaOnly'>"]
+        self.__inSchemaOnlyItems = ["<div class='report' id='inSchemaOnly'><h2>In Schema Only</h2>"]
         
     def inSchemaOnly(self, no, file, fileName):
         if len(self.__inSchemaOnlyItems) > 1:
