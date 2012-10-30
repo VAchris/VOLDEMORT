@@ -7,6 +7,9 @@
 
 # TODO: rename "vistaSchemaOrigin.py" ... ie work out the origin of schema changes
 # - tie in Builds, Packages, File version
+#   - even with move from DIFROM to KIDS: "The install history of software and patch installations is still maintained in the PACKAGE file, in the VERSION and PATCH APPLICATION HISTORY multiples"
+#   - unlike DIFROM: "When you send partial data dictionaries, you can send individual fields within a multiple, without sending the entire multiple." ... check multiples.
+#   - ^DD(filenumber,0,"VR") too: "If this field is NO or left null, a "VR" node will not be built by the init. Thus, whatever was present in this node on the target system will remain. Once a "VR" node has been set, the developer should continue to update it with each version. Otherwise, the node will contain the wrong version."
 # - may show ALL changed schemas ie/ one in "both changes" from schema report => need to make this easy to import/calculate.
 # - may do packages report ala Builds report ie/ with diffs and numbers etc. ie/ can show raw diffs and then tie it together.
 # TODO: BUG with .0 - 21455.0, 810.4 which isn't even in schema!
@@ -17,9 +20,9 @@
 # - audit 1.1. has two unique fields (deleted by GOLD) or should be in other somewhere ... search.
 
 """
-VOLDEMORT Other VistA Differ
+VOLDEMORT VistA Different Schema Origin
 
-This module reports on the differences made by another/non-GOLD VistA.
+From Schema report, we know "What". In here we work on "When and Who" from the Build file, Package file and the version information in files themselves.
 """
 
 import re
