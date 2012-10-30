@@ -5,6 +5,10 @@
 # For license information, see LICENSE.TXT
 #
 
+# TODO: rename "vistaSchemaOrigin.py" ... ie work out the origin of schema changes
+# - tie in Builds, Packages, File version
+# - may show ALL changed schemas ie/ one in "both changes" from schema report => need to make this easy to import/calculate.
+# - may do packages report ala Builds report ie/ with diffs and numbers etc. ie/ can show raw diffs and then tie it together.
 # TODO: BUG with .0 - 21455.0, 810.4 which isn't even in schema!
 # TODO: stuff allowed ot change: OE_RE_REPORT 101_24 ala 63_04
 # Still need to go through and recheck:
