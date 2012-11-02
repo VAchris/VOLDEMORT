@@ -30,6 +30,7 @@ class VistaBuildsComparer(object):
     A class to produce a report the compares a VistA against a baseline VistA.
     
     TODO: 
+    - tie in Package if in Build
     - subclass VistaReporter which can define reportsLocation etc.
     - dynamic chart example ie/ not HTML but a simple "demo" of number of builds
     installed. 
@@ -79,9 +80,13 @@ class VistaBuildsComparer(object):
         baseOnlyBuilds = set(baseBuilds).difference(otherBuilds)
         otherOnlyBuilds = set(otherBuilds).difference(baseBuilds)
         commonBuilds = set(baseBuilds).intersection(otherBuilds)
+        
+        basePackages = self.__bBuilds.listPackages()
+        otherPackages = self.__oBuilds.listPackages()
+        commonPackages = set(basePackages).intersection(otherPackages)
                 
         # With this can calculate total, baseOnly, otherOnly, both (total - baseOnly + otherOnly), oneOnly (baseOnly + otherOnly); baseMultis = base
-        reportBuilder.counts(total=len(allBuilds), installed=len(allInstalledBuilds), common=len(commonBuilds), baseTotal=len(baseBuilds), baseOnly=len(baseOnlyBuilds), otherTotal=len(otherBuilds), otherOnly=len(otherOnlyBuilds))
+        reportBuilder.counts(total=len(allBuilds), installed=len(allInstalledBuilds), common=len(commonBuilds), baseTotal=len(baseBuilds), baseOnly=len(baseOnlyBuilds), otherTotal=len(otherBuilds), otherOnly=len(otherOnlyBuilds), basePackages=len(basePackages), otherPackages=len(otherPackages), commonPackages=len(commonPackages))
         
         reportBuilder.valuesCounts(self.__bBuilds.getNoSpecificValues(), self.__oBuilds.getNoSpecificValues())
         reportBuilder.dateRanges(
@@ -101,9 +106,11 @@ class VistaBuildsComparer(object):
                 continue # ie/ too many
             buildAbout = builds.describeBuild(buildName)
             frgrm = (len(builds.describeBuildFiles(buildName)), len(builds.describeBuildRoutines(buildName)), len(builds.describeBuildGlobals(buildName)), len(builds.describeBuildRPCs(buildName)), len(builds.describeBuildMultiples(buildName)))
-            reportBuilder.oneOnly(no, buildName, buildAbout["date_distributed"] if "date_distributed" in buildAbout else "", buildAbout["vse:last_install_effect"], "NATIONAL" if "track_package_nationally" in buildAbout and buildAbout["track_package_nationally"] == "YES" else "LOCAL", buildAbout["type"] if "type" in buildAbout else "", buildAbout["description_of_enhancements"] if "description_of_enhancements" in buildAbout else "", frgrm)
+            packageName = "" if not "vse:package_name" in buildAbout else buildAbout["vse:package_name"]
+            packageId = "" if not "vse:package" in buildAbout else buildAbout["vse:package"]
+            reportBuilder.oneOnly(no, buildName, packageName, packageId, buildAbout["date_distributed"] if "date_distributed" in buildAbout else "", buildAbout["vse:last_install_effect"], "NATIONAL" if "track_package_nationally" in buildAbout and buildAbout["track_package_nationally"] == "YES" else "LOCAL", buildAbout["type"] if "type" in buildAbout else "", buildAbout["description_of_enhancements"] if "description_of_enhancements" in buildAbout else "", frgrm)
         reportBuilder.endOneOnly()        
-        
+                
 class VBHTMLReportBuilder:
     """
     """
@@ -112,9 +119,9 @@ class VBHTMLReportBuilder:
         self.__oVistaLabel = otherVistaLabel
         self.__reportLocation = reportLocation
                 
-    def counts(self, total, installed, common, baseTotal, baseOnly, otherTotal, otherOnly):
+    def counts(self, total, installed, common, baseTotal, baseOnly, otherTotal, otherOnly, basePackages, otherPackages, commonPackages):
     
-        self.__countsETCMU = "<div class='report' id='counts'><h2>Build Counts</h2><dl><dt>Total/Installed/Common</dt><dd>%d/%d/%d</dd><dt>%s Installed/Unique</dt><dd>%d/%d</dd><dt>%s Installed/Unique</dt><dd>%d/<span class='highlight'>%d</span></dd>" % (total, installed, common, self.__bVistaLabel, baseTotal, baseOnly, self.__oVistaLabel, otherTotal, otherOnly) 
+        self.__countsETCMU = "<div class='report' id='counts'><h2>Build Counts</h2><dl><dt>Total/Installed/Common</dt><dd>%d/%d/%d</dd><dt>%s Installed/Unique</dt><dd>%d/%d</dd><dt>%s Installed/Unique</dt><dd>%d/<span class='highlight'>%d</span></dd><dt>Packages</dt><dd>%d base/%d other/%d common</dd>" % (total, installed, common, self.__bVistaLabel, baseTotal, baseOnly, self.__oVistaLabel, otherTotal, otherOnly, basePackages, otherPackages, commonPackages) 
         
     def valuesCounts(self, baseValuesCount, otherValuesCount):
         self.__countsETCMU += "<dt>Datapoints - Base/Other</dt><dd>%d/%d</dd>" % (baseValuesCount, otherValuesCount)
@@ -130,20 +137,29 @@ class VBHTMLReportBuilder:
         oneOnlyStart = "<div class='report' id='%s'><h2>Builds only in %s </h2><p>%s</p>" % ("baseOnly" if base else "otherOnly", self.__bVistaLabel if base else self.__oVistaLabel, BASEBLURB if base else OTHERBLURB)
         self.__oneOnlyItems = [oneOnlyStart]
         # TODO: add in package once there
-        tblStartOne = "<table><tr><th>Install #</th><th>Name</th><th>Released/<br/>Last Installed </th><th>Scope<br/>Type<br/>files/routines/globals/rpcs/multiples</th><th>Description</th></tr>"
+        tblStartOne = "<table><tr><th>Install #</th><th>Name/Package</th><th>Released/<br/>Last Installed </th><th>Scope<br/>Type<br/>files/routines/globals/rpcs/multiples</th><th>Description</th></tr>"
         self.__oneOnlyItems.append(tblStartOne)
         
-    def oneOnly(self, no, name, released, installed, scope, type, description, frgrm):
+    def oneOnly(self, no, name, packageName, packageId, released, installed, scope, type, description, frgrm):
+        self.__rowBuild(self.__oneOnlyItems, no, name, packageName, packageId, released, installed, scope, type, description, frgrm)
+
+    def __rowBuild(self, items, no, name, packageName, packageId, released, installed, scope, type, description, frgrm):
         """
         no not necessarily sequential as skip multis
         """
-        self.__oneOnlyItems.append("<tr id='%s'><td>%d</td>" % (name, no))
-        self.__oneOnlyItems.append("<td>%s</td>" % (name))
-        self.__oneOnlyItems.append("<td>%s<br/>%s</td>" % (released.split("T")[0], installed.split("T")[0]))
-        self.__oneOnlyItems.append("<td>%s<br/>%s<br/>%s/%s/%s/%s/%s</td>" % (scope, type, frgrm[0], frgrm[1], frgrm[2], frgrm[3], frgrm[4]))
+        items.append("<tr id='%s'><td>%d</td>" % (name, no))
+        if packageId: # doing local to build report - don't rely on separate package report
+            # packageReportId = "packages%s_vs_%s.html" % (self.__bVistaLabel, self.__oVistaLabel) + "#" + str(packageName)
+            # packageMU = "<br/><a href='" + packageReportId + "'>" + packageName + "</a>"
+            packageMU = "<br/>" + packageName
+        else:
+            packageMU = ""
+        items.append("<td>%s%s</td>" % (name, packageMU))
+        items.append("<td>%s<br/>%s</td>" % (released.split("T")[0], installed.split("T")[0]))
+        items.append("<td>%s<br/>%s<br/>%s/%s/%s/%s/%s</td>" % (scope, type, frgrm[0], frgrm[1], frgrm[2], frgrm[3], frgrm[4]))
         # Long lines cause wrap problems
         description = cgi.escape(re.sub(r'\=\=\=\=\=\=+', '=====', description[0:1000]))
-        self.__oneOnlyItems.append("<td>%s</td></tr>" % description)
+        items.append("<td>%s</td></tr>" % description)
         
     def endOneOnly(self):
         self.__oneOnlyItems.append("</table></div>")

@@ -17,6 +17,7 @@ import json
 import sys
 from datetime import timedelta, datetime 
 import logging
+import operator
 from collections import OrderedDict, defaultdict
 from copies.fmqlCacher import FMQLDescribeResult
 
@@ -57,6 +58,15 @@ class VistaBuilds(object):
         TODO: expand for tabulation - show file/field=# 
         """
         return self.__noSpecificValues
+        
+    def listPackages(self):
+        """
+        TODO: may just move Package file in here ie/ get shallow 9_4 and nix all the other Package file logic (or leave for Routines and later)
+        """
+        return [(packageId, self.__packages[packageId]) for packageId in sorted(self.__packages.keys(), key=lambda x: int(x.split("-")[1]))]
+        
+    def getBuildsOfPackage(self, packageName):
+        return self.__buildsByPackageName[packageName]
                                           
     def listBuilds(self, installedOnly=True):
         """
@@ -193,6 +203,8 @@ class VistaBuilds(object):
         self.__buildGlobals = {}
         self.__buildRoutines = {} # from build components
         self.__buildRPCs = {} # from build components
+        self.__buildsByPackageName = defaultdict()
+        self.__packages = {}
         limit = 1000 if self.vistaLabel == "GOLD" else VistaBuilds.__ALL_LIMIT
         for i, buildResult in enumerate(self.__fmqlCacher.describeFileEntries("9_6", limit=limit, cstop=10000)):
             # logging.info("... build result %d" % i)
@@ -205,6 +217,12 @@ class VistaBuilds(object):
             if re.match(r'CGFMQL', name):
                 continue
             self.__buildAbouts[name] = dr.cstopped(flatten=True)
+            if "package_file_link" in buildResult:
+                packageName = buildResult["package_file_link"]["label"].split("/")[1]
+                self.__buildAbouts[name]["vse:package_name"] = packageName
+                self.__buildAbouts[name]["vse:package"] = buildResult["package_file_link"]["value"]
+                self.__buildsByPackageName[packageName] = name
+                self.__packages[buildResult["package_file_link"]["value"]] = packageName
             self.__buildAbouts[name]["vse:ien"] = buildResult["uri"]["value"].split("-")[1]
             self.__buildAbouts[name]["vse:status"] = "NEVER_INSTALLED" # overridden below
             if "file" in dr.cnodeFields():
@@ -297,11 +315,15 @@ def demo():
     cacher.setVista("CGVISTA", fmqlEP="http://vista.caregraf.org/fmqlEP")
     cgbs = VistaBuilds("CGVISTA", cacher)
     buildNames = cgbs.listBuilds()
+    packageNames = cgbs.listPackages()
+    print packageNames
+    print len(packageNames)
     print len(buildNames)
     print len(cgbs.listBuilds(False))
     print "First build is: %s" % buildNames[0]
-    print cgbs.describeBuild(buildNames[0])
-    print cgbs.describeBuildFiles(buildNames[0])
+    for i, buildName in enumerate(cgbs.listBuilds(True), 1):
+        ba = cgbs.describeBuild(buildName)
+        print "%d: %s - %s" % (i, buildName, ba["vse:package_name"] if "vse:package_name" in ba else "")
     flsEffected = cgbs.getFiles()
     for i, (fid, fi) in enumerate(flsEffected.items(), 1):
         print "%d: %s - %s" % (i, fid, str(fi))
