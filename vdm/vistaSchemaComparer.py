@@ -192,7 +192,8 @@ class VSHTMLReportBuilder:
         
     def __loadNamespaces(self):
         # TODO: look at high/low
-        reader = csv.DictReader(open("resources/Namespaces.csv"), delimiter='\t')
+        # TODO: fix to use pkg_resources: http://peak.telecommunity.com/DevCenter/PythonEggs#accessing-package-resources
+        reader = csv.DictReader(open(os.path.join(os.path.dirname(__file__), "resources/Namespaces.csv")), delimiter='\t')
         self.namespaces = {}
         for row in reader:
             self.namespaces[row["NUMBER"]] = row["NAME"]
