@@ -9,16 +9,21 @@
 Module for retrieving, caching and analysing a VistA's schemas returned by FMQL
 
 TODO - Changes/Additions Planned:
+- CSV for field namespaces (MSC == 21400) and Station Numbers for VA private stuff
+- KEY FILES (fix for now based on FOIA refs)
 - any FMQLisms in Schema returned move in here
   - ie/ . not _ to match Builds file ids
 - leverage Packages (static: https://raw.github.com/OSEHR/VistA-FOIA/master/Packages.csv or 9_4) and Station Numbers (file 4).
   - station number to field name for class 3: New fields within the VA should be given field numbers in the format of NNNXXX, where NNN is the 3-digit VA station identifier and XXX is a three-digit sequence number, usually 001 and going up from there for a given file.  New nodes should be added as nodes NNNXXX, same format, not in the low numerics, not in the alpha series of nodes". Ex/ acceptance (460001) ... ess people (776000) ... lblk1 choices (500003) ... or even collect (580950.1) 
 - for file -> package map, use locations/arrays. Note can't use Prefixes from Package
 file AS they are for routines. Can QA/Compare OSEHRA's list to actual files.
+- index and cross reference differences ie/ beyond just NAME differences
+- see if MU led to File changes (ex/ http://vistapedia.net/index.php?title=Language_File_(.85)) and mark as such
 """
 
 import os
 import re
+import csv
 import urllib
 import urllib2
 import json
@@ -152,7 +157,7 @@ def demo():
     'Schema of CGVISTA'
     >>> vair.getSchema("2")
     {...
-    """
+    """    
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     from copies.fmqlCacher import FMQLCacher
     cacher = FMQLCacher("Caches")

@@ -26,6 +26,7 @@ TODO - Changes/Additions Planned:
 
 import re
 import json
+import csv
 import sys
 import os
 from datetime import datetime 
@@ -187,6 +188,15 @@ class VSHTMLReportBuilder:
         self.__oVistaLabel = otherVistaLabel
         self.__reportLocation = reportLocation
         self.__parents = {}
+        self.__loadNamespaces()
+        
+    def __loadNamespaces(self):
+        # TODO: look at high/low
+        reader = csv.DictReader(open("resources/Namespaces.csv"), delimiter='\t')
+        self.namespaces = {}
+        for row in reader:
+            self.namespaces[row["NUMBER"]] = row["NAME"]
+        self.namespaces["214"] = "MEDSPHERE"
                        
     def startInBoth(self):
         bothStart = "<div class='report' id='both'><h2>Differences between Files in Both</h2><p>Files common to both VistAs that have schema as opposed to content differences. Fields unique to %s (\"missing fields\") means %s has fallen behind and is missing some builds present in %s. Fields unique to %s (\"custom fields\") means it has added custom entries not found in %s. Entries labeled \"field name mismatch\" show fields with different names in each VistA. Some mismatches are superficial name variations but many represent the use of the same field for different purposes by each system. Note that this list <span class='highlight'>does not highlight differences in Lab files</span> - local sites customize these extensively. There needs to be a separate 'lab differences' report." % (self.__bVistaLabel, self.__oVistaLabel, self.__bVistaLabel, self.__oVistaLabel, self.__bVistaLabel)
@@ -257,8 +267,12 @@ class VSHTMLReportBuilder:
         for field in fields:
             if muFields:
                 muFields += ", "
-            # TODO: improve this - highlighting station number - field #, 6 digit fields
-            fieldNumberMU = field["number"] if not re.match(r'\d{6}', field["number"]) else "<strong>" + field["number"] + "</strong>"
+            fieldNumberMU = field["number"]
+            # TODO: 776XXX etc which don't match. What are they? Check?
+            if re.match(r'\d{6}\.?', field["number"]):
+                vaStationId = re.match(r'(\d{3})', field["number"]).group(1)
+                if vaStationId in self.namespaces:
+                    fieldNumberMU = "<strong>" + field["number"] + " (" + self.namespaces[vaStationId] + ")</strong>"
             muFields += self.__niceFieldName(field["name"]) + " (%s)" % fieldNumberMU
         return muFields
         
@@ -381,8 +395,8 @@ def demo():
     gCacher = FMQLCacher("Caches")
     gCacher.setVista("GOLD")
     oCacher = FMQLCacher("Caches")
-    oCacher.setVista("RPMS", "http://vista.caregraf.org/fmqlEP")
-    vsr = VistaSchemaComparer(VistaSchema("GOLD", gCacher), VistaSchema("RPMS", oCacher))
+    oCacher.setVista("CGVISTA", "http://vista.caregraf.org/fmqlEP")
+    vsr = VistaSchemaComparer(VistaSchema("GOLD", gCacher), VistaSchema("CGVISTA", oCacher))
     reportLocation = vsr.compare(format="HTML")
     print "Report written to %s" % reportLocation
         
